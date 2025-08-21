@@ -1,0 +1,5 @@
+flask
+python-chess
+stockfish
+torch
+numpy

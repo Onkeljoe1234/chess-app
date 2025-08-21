@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Python Chess App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chessboard-1.0.0.min.css') }}">
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f0f0; }
+        #app-container { display: flex; gap: 20px; align-items: flex-start; }
+        #myBoard { width: 40vw; max-width: 600px; }
+        #controls { width: 200px; padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .control-group { margin-bottom: 20px; }
+        h3 { margin-top: 0; }
+        button { width: 100%; padding: 10px 15px; font-size: 1em; cursor: pointer; }
+        #gameStatus { margin-top: 15px; font-size: 1.1em; color: #d9534f; min-height: 24px; font-weight: bold; }
+
+        /* --- CSS FOR THE PROMOTION MODAL --- */
+        #modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            display: none;
+        }
+        #promotion-dialog {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: none;
+        }
+        #promotion-pieces img {
+            width: 60px;
+            height: 60px;
+            cursor: pointer;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        #promotion-pieces img:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <div id="myBoard"></div>
+        <div id="controls">
+            <h3>Game Setup</h3>
+            <div class="control-group">
+                <label for="engine-select">Opponent:</label>
+                <select id="engine-select" style="width: 100%; padding: 5px;">
+                    <option value="stockfish">Stockfish</option>
+                    <option value="transformer_mt">My Transformer</option>
+                    <option value="random">Random Mover</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Play as:</label><br>
+                <input type="radio" id="color-white" name="color" value="white" checked> <label for="color-white">White</label><br>
+                <input type="radio" id="color-black" name="color" value="black"> <label for="color-black">Black</label><br>
+                <input type="radio" id="color-random" name="color" value="random"> <label for="color-random">Random</label>
+            </div>
+            <button id="startButton">Start New Game</button>
+            <button id="switchButton" style="margin-top: 10px;">Switch Model</button>
+            <div id="gameStatus"></div>
+        </div>
+    </div>
+
+    <!-- --- HTML FOR THE PROMOTION MODAL --- -->
+    <div id="modal-overlay"></div>
+    <div id="promotion-dialog">
+        <h4>Promote Pawn to:</h4>
+        <div id="promotion-pieces"></div>
+    </div>
+
+
+    <script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chessboard-1.0.0.min.js') }}"></script>
+    <script>
+        let board = null;
+        let playerColor = 'white';
+        let isGameOver = false;
+        // --- FIX: Initialize as an empty object ---
+        let pendingMove = {};
+
+        function onDragStart(source, piece) {
+            if (isGameOver) return false;
+            const playerColorInitial = playerColor.charAt(0);
+            return piece.search(new RegExp(`^${playerColorInitial}`)) !== -1;
+        }
+
+        // --- FIX: Update function to accept oldPos ---
+        function sendMoveToServer(moveUci, oldPos) {
+            $.ajax({
+                url: "/move",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ move: moveUci }),
+                success: function(response) {
+                    board.position(response.fen);
+                    if (response.game_over) {
+                        $('#gameStatus').text(response.status);
+                        isGameOver = true;
+                    } else {
+                        $('#gameStatus').text('');
+                    }
+                },
+                error: function() {
+                    // --- FIX: Use the passed oldPos to revert the board ---
+                    board.position(oldPos, true);
+                    $('#gameStatus').text("Illegal move!");
+                }
+            });
+        }
+
+        // --- FIX: Ensure onDrop correctly handles oldPos in all cases ---
+        function onDrop(source, target, piece, newPos, oldPos) {
+            const isPromotion = (piece === 'wP' && target.charAt(1) === '8') ||
+                                (piece === 'bP' && target.charAt(1) === '1');
+
+            if (isPromotion) {
+                // --- FIX: Store oldPos in the pendingMove object ---
+                pendingMove = { source: source, target: target, oldPos: oldPos };
+                const color = piece.charAt(0);
+                const pieces = ['Q', 'R', 'B', 'N'];
+                
+                $('#promotion-pieces').empty();
+                pieces.forEach(p => {
+                    const pieceImg = `<img src="static/img/chesspieces/wikipedia/${color}${p}.png" data-piece="${p.toLowerCase()}"/>`;
+                    $('#promotion-pieces').append(pieceImg);
+                });
+
+                $('#modal-overlay, #promotion-dialog').fadeIn();
+            } else {
+                // --- FIX: Pass oldPos to sendMoveToServer ---
+                sendMoveToServer(source + target, oldPos);
+            }
+        }
+        
+        const config = {
+            draggable: true,
+            position: 'start',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            pieceTheme: 'static/img/chesspieces/wikipedia/{piece}.png'
+        };
+        board = Chessboard('myBoard', config);
+
+        // --- FIX: Ensure promotion click handler uses stored oldPos ---
+        $('#promotion-pieces').on('click', 'img', function() {
+            const promotionPiece = $(this).data('piece');
+            if (pendingMove.source) { // Check if a move is actually pending
+                const moveUci = pendingMove.source + pendingMove.target + promotionPiece;
+                // --- FIX: Pass the stored oldPos from the pendingMove object ---
+                sendMoveToServer(moveUci, pendingMove.oldPos);
+            }
+            $('#modal-overlay, #promotion-dialog').fadeOut();
+            // --- FIX: Reset pendingMove to an empty object ---
+            pendingMove = {};
+        });
+
+        $('#startButton').on('click', function() {
+            const selectedEngine = $('#engine-select').val();
+            const selectedColor = $('input[name="color"]:checked').val();
+            isGameOver = false;
+            $('#gameStatus').text('Starting...');
+            $.ajax({
+                url: "/start", type: "POST", contentType: "application/json",
+                data: JSON.stringify({ engine: selectedEngine, color: selectedColor }),
+                success: function(data) {
+                    playerColor = data.player_color;
+                    board.orientation(playerColor);
+                    board.position(data.fen);
+                    $('#gameStatus').text(`Playing as ${playerColor}.`);
+                }
+            });
+        });
+            
+        $('#switchButton').on('click', function() {
+            const selectedEngine = $('#engine-select').val();
+            $.ajax({
+                url: "/switch",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ engine: selectedEngine }),
+                success: function(response) {
+                    if(response.success) {
+                        $('#gameStatus').text(`Switched to ${selectedEngine}.`);
+                    }
+                }
+            });
+        });
+
+  
+        
+        $(document).ready(function() {
+             $('#startButton').click();
+        });
+    </script>
+</body>
+</html>
