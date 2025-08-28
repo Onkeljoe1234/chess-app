@@ -2,21 +2,22 @@ from flask import Flask, render_template, request, jsonify
 import chess
 import os
 import random
+from pathlib import Path
 
 # --- Predictor Imports ---
 from predictors import RandomPredictor, StockfishPredictor, TransformerMultitaskPredictor
 
 
-stockfish_path = os.getenv("STOCKFISH_PATH", "/usr/games/stockfish")
-YOUR_MODEL_WEIGHTS_PATH = "chess_transformer_multi_m=XXS_ds=XXL.pt"
+STOCKFISH_PATH = os.getenv("STOCKFISH_PATH", "/usr/games/stockfish")
+BASE_DIR = Path("models")
 
 predictors = {
     "random": RandomPredictor(),
-    "stockfish": StockfishPredictor(stockfish_path=stockfish_path),
+    "stockfish": StockfishPredictor(stockfish_path=STOCKFISH_PATH),
     "transformer_mt": TransformerMultitaskPredictor(
-        model_path=YOUR_MODEL_WEIGHTS_PATH,
-        fen_vocab_path="fen_vocab.json",
-        move_vocab_path="move_vocab.json"
+        model_path=BASE_DIR / "chess_transformer_multi_m=XXS_ds=XXL.pt",
+        fen_vocab_path=BASE_DIR / "fen_vocab.json",
+        move_vocab_path=BASE_DIR / "move_vocab.json"
     )
 }
 
