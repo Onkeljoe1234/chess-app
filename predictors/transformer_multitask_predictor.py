@@ -26,7 +26,6 @@ class FenToPolicyValueTransformer(nn.Module):
         pad_token_id: int = 0,
     ):
         super().__init__()
-        self.name = "Transformer Multitask"
         self.pad_token_id = pad_token_id
         self.max_seq_len = max_seq_len
 
@@ -103,6 +102,8 @@ class TransformerMultitaskPredictor(Predictor):
     """A predictor that uses your FenToPolicyValueTransformer model."""
 
     def __init__(self, model_path: str, fen_vocab_path: str, move_vocab_path: str):
+        self.name = "Transformer Multitask"
+
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"TorchPredictor using device: {self.device}")
 

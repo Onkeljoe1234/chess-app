@@ -104,7 +104,7 @@ def make_move():
             start = time.time()
             ai_move = game_state["predictor"].get_move(board)
             end = time.time()
-            print(f"AI move time: {end - start:.2f} seconds", flush=True)
+            print(f"AI move time: {end - start:.4f} seconds", flush=True)
             if ai_move:
                 board.push(ai_move)
 
