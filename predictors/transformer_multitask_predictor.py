@@ -26,6 +26,7 @@ class FenToPolicyValueTransformer(nn.Module):
         pad_token_id: int = 0,
     ):
         super().__init__()
+        self.name = "Transformer Multitask"
         self.pad_token_id = pad_token_id
         self.max_seq_len = max_seq_len
 

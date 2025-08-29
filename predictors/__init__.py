@@ -1,3 +1,4 @@
 from .random_predictor import RandomPredictor
 from .stockfish_predictor import StockfishPredictor
 from .transformer_multitask_predictor import TransformerMultitaskPredictor
+from .onnx_predictor import ONNXMultitaskPredictor

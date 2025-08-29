@@ -54,8 +54,10 @@
             <div class="control-group">
                 <label for="engine-select">Opponent:</label>
                 <select id="engine-select" style="width: 100%; padding: 5px;">
+                    <option value="transformer_mt">Torch-Model</option>
+                    <option value="onnx_q8_mt">ONNX-Q8-Model</option>
+                    <!--<option value="onnx_q4_mt">ONNX-Q4-Model</option>-->
                     <option value="stockfish">Stockfish</option>
-                    <option value="transformer_mt">My Transformer</option>
                     <option value="random">Random Mover</option>
                 </select>
             </div>
@@ -85,7 +87,7 @@
         let board = null;
         let playerColor = 'white';
         let isGameOver = false;
-        // --- FIX: Initialize as an empty object ---
+        // Initialize as an empty object
         let pendingMove = {};
 
         function onDragStart(source, piece) {
@@ -94,7 +96,7 @@
             return piece.search(new RegExp(`^${playerColorInitial}`)) !== -1;
         }
 
-        // --- FIX: Update function to accept oldPos ---
+        // Update function to accept oldPos
         function sendMoveToServer(moveUci, oldPos) {
             $.ajax({
                 url: "/move",
@@ -111,20 +113,20 @@
                     }
                 },
                 error: function() {
-                    // --- FIX: Use the passed oldPos to revert the board ---
+                    // Use the passed oldPos to revert the board
                     board.position(oldPos, true);
                     $('#gameStatus').text("Illegal move!");
                 }
             });
         }
 
-        // --- FIX: Ensure onDrop correctly handles oldPos in all cases ---
+        // Ensure onDrop correctly handles oldPos in all cases
         function onDrop(source, target, piece, newPos, oldPos) {
             const isPromotion = (piece === 'wP' && target.charAt(1) === '8') ||
                                 (piece === 'bP' && target.charAt(1) === '1');
 
             if (isPromotion) {
-                // --- FIX: Store oldPos in the pendingMove object ---
+                // Store oldPos in the pendingMove object
                 pendingMove = { source: source, target: target, oldPos: oldPos };
                 const color = piece.charAt(0);
                 const pieces = ['Q', 'R', 'B', 'N'];
@@ -137,7 +139,7 @@
 
                 $('#modal-overlay, #promotion-dialog').fadeIn();
             } else {
-                // --- FIX: Pass oldPos to sendMoveToServer ---
+                // Pass oldPos to sendMoveToServer
                 sendMoveToServer(source + target, oldPos);
             }
         }
@@ -151,16 +153,14 @@
         };
         board = Chessboard('myBoard', config);
 
-        // --- FIX: Ensure promotion click handler uses stored oldPos ---
+        // Ensure promotion click handler uses stored oldPos
         $('#promotion-pieces').on('click', 'img', function() {
             const promotionPiece = $(this).data('piece');
             if (pendingMove.source) { // Check if a move is actually pending
-                const moveUci = pendingMove.source + pendingMove.target + promotionPiece;
-                // --- FIX: Pass the stored oldPos from the pendingMove object ---
+                const moveUci = pendingMove.source + pendingMove.target + promotionPiece;-
                 sendMoveToServer(moveUci, pendingMove.oldPos);
             }
             $('#modal-overlay, #promotion-dialog').fadeOut();
-            // --- FIX: Reset pendingMove to an empty object ---
             pendingMove = {};
         });
 

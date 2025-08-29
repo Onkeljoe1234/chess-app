@@ -5,6 +5,8 @@ from .base_predictor import Predictor
 
 class RandomPredictor(Predictor):
     """A predictor that returns a random legal move."""
+    def __init__(self):
+        self.name = "Random"
 
     def get_move(self, board: chess.Board) -> chess.Move:
         """

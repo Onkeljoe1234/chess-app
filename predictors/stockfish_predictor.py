@@ -10,6 +10,7 @@ class StockfishPredictor(Predictor):
         Initializes the Stockfish engine.
         Make sure to update the path to your Stockfish executable.
         """
+        self.name = "Stockfish"
         try:
             self.stockfish = Stockfish(path=stockfish_path)
         except FileNotFoundError:

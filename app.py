@@ -2,10 +2,11 @@ from flask import Flask, render_template, request, jsonify
 import chess
 import os
 import random
+import time
 from pathlib import Path
 
 # --- Predictor Imports ---
-from predictors import RandomPredictor, StockfishPredictor, TransformerMultitaskPredictor
+from predictors import RandomPredictor, StockfishPredictor, TransformerMultitaskPredictor, ONNXMultitaskPredictor
 
 
 STOCKFISH_PATH = os.getenv("STOCKFISH_PATH", "/usr/games/stockfish")
@@ -18,7 +19,17 @@ predictors = {
         model_path=BASE_DIR / "chess_transformer_multi_m=XXS_ds=XXL.pt",
         fen_vocab_path=BASE_DIR / "fen_vocab.json",
         move_vocab_path=BASE_DIR / "move_vocab.json"
+    ),
+    "onnx_q8_mt": ONNXMultitaskPredictor(
+        model_path=BASE_DIR / "model.QUInt8.onnx",
+        fen_vocab_path=BASE_DIR / "fen_vocab.json",
+        move_vocab_path=BASE_DIR / "move_vocab.json"
     )
+    # "onnx_q4_mt": ONNXMultitaskPredictor(
+    #     model_path=BASE_DIR / "model.QUInt4.onnx",
+    #     fen_vocab_path=BASE_DIR / "fen_vocab.json",
+    #     move_vocab_path=BASE_DIR / "move_vocab.json"
+    # )
 }
 
 app = Flask(__name__)
@@ -87,10 +98,13 @@ def make_move():
                 return jsonify({"fen": board.fen(), "game_over": True, "status": get_game_status()})
 
             # --- Add this line for backend logging ---
-            print(f"AI is thinking with: {game_state['predictor']}", flush=True)
+            print(f"AI is thinking with: {game_state['predictor'].name}", flush=True)
             
             # Get AI's response move
+            start = time.time()
             ai_move = game_state["predictor"].get_move(board)
+            end = time.time()
+            print(f"AI move time: {end - start:.2f} seconds", flush=True)
             if ai_move:
                 board.push(ai_move)
 
@@ -113,7 +127,7 @@ def switch_model():
     if engine_name in predictors:
         game_state["predictor"] = predictors[engine_name]
         # Log the switch to the backend console
-        print(f"--- Switched predictor to: {game_state['predictor']} ---", flush=True)
+        print(f"--- Switched predictor to: {game_state['predictor'].name} ---", flush=True)
         return jsonify({"success": True, "new_engine": engine_name})
     else:
         return jsonify({"error": "Invalid engine name"}), 400
