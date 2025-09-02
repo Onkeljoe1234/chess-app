@@ -20,16 +20,16 @@ predictors = {
         fen_vocab_path=BASE_DIR / "fen_vocab.json",
         move_vocab_path=BASE_DIR / "move_vocab.json"
     ),
-    "onnx_q8_mt": ONNXMultitaskPredictor(
+    "onnx_factorized_policy_mt": ONNXMultitaskPredictor(
         model_path=BASE_DIR / "model.QUInt8.onnx",
         fen_vocab_path=BASE_DIR / "fen_vocab.json",
         move_vocab_path=BASE_DIR / "move_vocab.json"
+    ),
+    "onnx_V11_mt": ONNXMultitaskPredictor(
+        model_path=BASE_DIR / "model_XXXS_V11.QUInt8.onnx",
+        fen_vocab_path=BASE_DIR / "fen_vocab.json",
+        move_vocab_path=BASE_DIR / "move_vocab.json"
     )
-    # "onnx_q4_mt": ONNXMultitaskPredictor(
-    #     model_path=BASE_DIR / "model.QUInt4.onnx",
-    #     fen_vocab_path=BASE_DIR / "fen_vocab.json",
-    #     move_vocab_path=BASE_DIR / "move_vocab.json"
-    # )
 }
 
 app = Flask(__name__)
