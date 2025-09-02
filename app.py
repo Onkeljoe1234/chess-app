@@ -15,11 +15,11 @@ BASE_DIR = Path("models")
 predictors = {
     "random": RandomPredictor(),
     "stockfish": StockfishPredictor(stockfish_path=STOCKFISH_PATH),
-    "transformer_mt": TransformerMultitaskPredictor(
-        model_path=BASE_DIR / "chess_transformer_multi_m=XXS_ds=XXL.pt",
-        fen_vocab_path=BASE_DIR / "fen_vocab.json",
-        move_vocab_path=BASE_DIR / "move_vocab.json"
-    ),
+    # "transformer_mt": TransformerMultitaskPredictor(
+    #     model_path=BASE_DIR / "chess_transformer_multi_m=XXS_ds=XXL.pt",
+    #     fen_vocab_path=BASE_DIR / "fen_vocab.json",
+    #     move_vocab_path=BASE_DIR / "move_vocab.json"
+    # ),
     "onnx_factorized_policy_mt": ONNXMultitaskPredictor(
         model_path=BASE_DIR / "model.QUInt8.onnx",
         fen_vocab_path=BASE_DIR / "fen_vocab.json",
@@ -38,7 +38,7 @@ board = chess.Board()
 # Simple in-memory storage for game state. For a real app, use sessions.
 game_state = {
     "player_color": chess.WHITE,
-    "predictor": predictors["transformer_mt"] # Default predictor
+    "predictor": predictors["onnx_V11_mt"] # Default predictor
 }
 
 @app.route("/")
