@@ -97,6 +97,20 @@
         footer a { color: var(--text-soft); text-decoration: none; font-weight: 600; }
         footer a:hover { color: var(--accent); }
 
+        /* wizard mode */
+        #wizard3d { display: none; width: min(560px, 86vw); aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; }
+        #wizard3d canvas { display: block; width: 100% !important; height: 100% !important; }
+        .switch-row { display: flex; align-items: center; justify-content: space-between; }
+        .switch-row .label { font-size: 0.9em; }
+        .switch-row .hint { font-size: 0.72em; color: var(--text-soft); margin-top: 3px; }
+        .toggle { position: relative; width: 46px; height: 26px; flex: none; }
+        .toggle input { display: none; }
+        .toggle .track { position: absolute; inset: 0; background: #e5e7eb; border-radius: 13px; transition: background 0.2s; cursor: pointer; }
+        .toggle .track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+            background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: transform 0.2s; }
+        .toggle input:checked + .track { background: linear-gradient(90deg, #7c3aed, #4f46e5); }
+        .toggle input:checked + .track::after { transform: translateX(20px); }
+
         /* promotion modal */
         #modal-overlay { position: fixed; inset: 0; background: rgba(17,24,39,0.45); z-index: 999; display: none; }
         #promotion-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -111,7 +125,7 @@
 <body>
     <main>
         <div id="app-container">
-            <div id="board-card"><div id="myBoard"></div></div>
+            <div id="board-card"><div id="myBoard"></div><div id="wizard3d"></div></div>
             <div id="controls">
                 <h1>♟ Compact Chess Transformer</h1>
                 <div class="subtitle">967k-Parameter-Engine · MCTS-Suche</div>
@@ -128,6 +142,16 @@
                         <input type="radio" id="color-white" name="color" value="white" checked><label for="color-white">Weiß</label>
                         <input type="radio" id="color-black" name="color" value="black"><label for="color-black">Schwarz</label>
                         <input type="radio" id="color-random" name="color" value="random"><label for="color-random">Zufall</label>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="switch-row">
+                        <div>
+                            <div class="label">⚡ Zauberschach</div>
+                            <div class="hint">3D-Modus — Figuren werden geschlagen. Wirklich.</div>
+                        </div>
+                        <label class="toggle"><input type="checkbox" id="wizardToggle"><span class="track"></span></label>
                     </div>
                 </div>
 
@@ -159,6 +183,8 @@
 
     <script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/chessboard-1.0.0.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/three.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
     <script>
         let board = null;
         let playerColor = 'white';
@@ -166,8 +192,25 @@
         let isThinking = false;
         let gameId = null;
         let pendingMove = {};
+        let lastFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        let wizardOn = false;
+        let wizardInitialized = false;
 
         function currentNodes() { return parseInt($('#strength').val(), 10); }
+
+        // single place that pushes a position into whichever view is active
+        function applyFen(fen, animate) {
+            lastFen = fen;
+            if (wizardOn) {
+                Wizard.setFen(fen, animate !== false);
+            } else {
+                board.position(fen);
+            }
+        }
+
+        function updateInteractive() {
+            if (wizardOn) Wizard.setInteractive(!isThinking && !isGameOver);
+        }
 
         function updateSlider() {
             const n = currentNodes();
@@ -180,6 +223,7 @@
             isThinking = on;
             $('#thinking').css('display', on ? 'flex' : 'none');
             if (on) $('#statusText').text('').removeClass('error final');
+            updateInteractive();
         }
 
         function setStatus(text, cls) {
@@ -208,11 +252,12 @@
                 data: JSON.stringify({ game_id: gameId, nodes: currentNodes() }),
                 success: function(response) {
                     setThinking(false);
-                    board.position(response.fen);
+                    applyFen(response.fen);
                     showAiInfo(response.ai);
                     if (response.game_over) {
                         setStatus(response.status, 'final');
                         isGameOver = true;
+                        updateInteractive();
                     }
                 },
                 error: function(xhr) {
@@ -230,18 +275,19 @@
                 success: function(response) {
                     // Spielerzug sofort vollständig anzeigen (Rochade-Turm,
                     // En-passant), erst danach denkt die Engine
-                    board.position(response.fen);
+                    applyFen(response.fen);
                     if (response.game_over) {
                         setThinking(false);
                         setStatus(response.status, 'final');
                         isGameOver = true;
+                        updateInteractive();
                         return;
                     }
                     requestAiMove();
                 },
                 error: function(xhr) {
                     setThinking(false);
-                    board.position(oldPos, true);
+                    if (oldPos) board.position(oldPos, true);
                     setStatus((xhr.responseJSON && xhr.responseJSON.error) || 'Ungültiger Zug', 'error');
                 }
             });
@@ -272,7 +318,7 @@
             onDrop: onDrop,
             pieceTheme: 'static/img/chesspieces/wikipedia/{piece}.png'
         });
-        $(window).on('resize', () => board.resize());
+        $(window).on('resize', () => { board.resize(); if (wizardInitialized) Wizard.resize(); });
 
         $('#promotion-pieces').on('click', 'img', function() {
             const promotionPiece = $(this).data('piece');
@@ -294,15 +340,59 @@
                 url: "start", type: "POST", contentType: "application/json",
                 data: JSON.stringify({ color: selectedColor, nodes: currentNodes() }),
                 success: function(data) {
-                    setThinking(false);
                     gameId = data.game_id;
                     playerColor = data.player_color;
                     board.orientation(playerColor === 'white' ? 'white' : 'black');
-                    board.position(data.fen);
+                    if (wizardOn) {
+                        Wizard.setOrientation(playerColor);
+                        Wizard.setFen(data.fen, false);   // fresh board, no diff animation
+                        lastFen = data.fen;
+                    } else {
+                        applyFen(data.fen);
+                    }
+                    setThinking(false);
                     showAiInfo(data.ai);
                     setStatus(`Du spielst ${playerColor === 'white' ? 'Weiß' : 'Schwarz'}.`);
                 }
             });
+        });
+
+        // --- Zauberschach (3D) -------------------------------------------
+
+        function onWizardMove(fromSq, toSq, pieceChar) {
+            const isPromotion = pieceChar && pieceChar.toLowerCase() === 'p' &&
+                (toSq.charAt(1) === '8' || toSq.charAt(1) === '1');
+            if (isPromotion) {
+                pendingMove = { source: fromSq, target: toSq, oldPos: null };
+                const color = pieceChar === 'P' ? 'w' : 'b';
+                $('#promotion-pieces').empty();
+                ['Q', 'R', 'B', 'N'].forEach(p => {
+                    $('#promotion-pieces').append(
+                        `<img src="static/img/chesspieces/wikipedia/${color}${p}.png" data-piece="${p.toLowerCase()}"/>`);
+                });
+                $('#modal-overlay, #promotion-dialog').fadeIn(120);
+            } else {
+                sendMoveToServer(fromSq + toSq, null);
+            }
+        }
+
+        $('#wizardToggle').on('change', function() {
+            wizardOn = this.checked;
+            if (wizardOn && !wizardInitialized) {
+                Wizard.init(document.getElementById('wizard3d'), onWizardMove);
+                wizardInitialized = true;
+            }
+            $('#myBoard').toggle(!wizardOn);
+            $('#wizard3d').toggle(wizardOn);
+            if (wizardOn) {
+                Wizard.setOrientation(playerColor);
+                Wizard.resize();
+                Wizard.setFen(lastFen, false);
+                updateInteractive();
+            } else {
+                board.position(lastFen);
+                board.resize();
+            }
         });
 
         $(document).ready(function() {
