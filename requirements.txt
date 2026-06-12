@@ -1,5 +1,5 @@
 flask
+gunicorn
 python-chess
-stockfish
-torch
 numpy
+onnxruntime

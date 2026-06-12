@@ -1,0 +1,11 @@
+services:
+  chess-app:
+    build: .
+    image: chess-app:latest
+    container_name: chess-app
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_PASSWORD=${APP_PASSWORD:?set APP_PASSWORD in .env or environment}
+      - ORT_THREADS=${ORT_THREADS:-4}
+    restart: unless-stopped
