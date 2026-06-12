@@ -1,61 +1,159 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Compact Chess Transformer</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chessboard-1.0.0.min.css') }}">
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f0f0; }
-        #app-container { display: flex; gap: 20px; align-items: flex-start; }
-        #myBoard { width: 40vw; max-width: 600px; }
-        #controls { width: 230px; padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .control-group { margin-bottom: 20px; }
-        h3 { margin-top: 0; }
-        button { width: 100%; padding: 10px 15px; font-size: 1em; cursor: pointer; }
-        #gameStatus { margin-top: 15px; font-size: 1.1em; color: #d9534f; min-height: 24px; font-weight: bold; }
-        #aiInfo { margin-top: 10px; font-size: 0.85em; color: #555; min-height: 50px; }
-        #strengthValue { font-weight: bold; }
-        input[type=range] { width: 100%; }
-        #evalBarWrap { height: 14px; background: #333; border-radius: 7px; overflow: hidden; margin-top: 6px; }
-        #evalBar { height: 100%; width: 50%; background: #eee; transition: width 0.4s; }
+        :root {
+            --accent: #4f46e5;
+            --accent-soft: #eef2ff;
+            --text: #1f2937;
+            --text-soft: #6b7280;
+            --card: #ffffff;
+            --bg: #f4f5f7;
+            --radius: 16px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+            background: linear-gradient(180deg, #fafbfc 0%, var(--bg) 100%);
+            color: var(--text);
+        }
+        main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }
+        #app-container { display: flex; gap: 28px; align-items: stretch; flex-wrap: wrap; justify-content: center; }
 
-        #modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.5); z-index: 999; display: none; }
+        #board-card, #controls {
+            background: var(--card); border-radius: var(--radius);
+            box-shadow: 0 10px 30px rgba(17, 24, 39, 0.08), 0 1px 3px rgba(17, 24, 39, 0.04);
+        }
+        #board-card { padding: 18px; }
+        #myBoard { width: min(560px, 86vw); }
+        #myBoard .board-b72b1 { border: none; border-radius: 10px; overflow: hidden; }
+
+        #controls { width: 270px; padding: 26px 24px; display: flex; flex-direction: column; }
+        h1 { font-size: 1.15em; margin: 0 0 2px; letter-spacing: -0.01em; }
+        .subtitle { font-size: 0.78em; color: var(--text-soft); margin-bottom: 22px; }
+
+        .control-group { margin-bottom: 22px; }
+        .control-group > label.title { display: block; font-size: 0.78em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-soft); margin-bottom: 8px; }
+        #strengthValue { color: var(--accent); font-weight: 700; text-transform: none; letter-spacing: 0; }
+
+        input[type=range] { width: 100%; appearance: none; height: 6px; border-radius: 3px;
+            background: linear-gradient(90deg, var(--accent) var(--fill, 17%), #e5e7eb var(--fill, 17%)); outline: none; }
+        input[type=range]::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; border-radius: 50%;
+            background: #fff; border: 2px solid var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,0.2); cursor: pointer; }
+        input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%;
+            background: #fff; border: 2px solid var(--accent); cursor: pointer; }
+        .range-labels { display: flex; justify-content: space-between; font-size: 0.72em; color: var(--text-soft); margin-top: 5px; }
+
+        .color-options { display: flex; gap: 8px; }
+        .color-options input[type=radio] { display: none; }
+        .color-options label {
+            flex: 1; text-align: center; padding: 8px 0; font-size: 0.85em; cursor: pointer;
+            border: 1.5px solid #e5e7eb; border-radius: 10px; color: var(--text-soft);
+            transition: all 0.15s;
+        }
+        .color-options input[type=radio]:checked + label {
+            border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600;
+        }
+
+        button#startButton {
+            width: 100%; padding: 12px; font-size: 0.95em; font-weight: 600; cursor: pointer;
+            color: #fff; background: var(--accent); border: none; border-radius: 12px;
+            transition: background 0.15s, transform 0.05s;
+        }
+        button#startButton:hover { background: #4338ca; }
+        button#startButton:active { transform: scale(0.98); }
+
+        #statusArea { min-height: 28px; margin-top: 18px; display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
+        #statusText { color: var(--text-soft); }
+        #statusText.error { color: #dc2626; font-weight: 600; }
+        #statusText.final { color: var(--text); font-weight: 700; }
+
+        /* thinking dots */
+        #thinking { display: none; align-items: center; gap: 10px; color: var(--text-soft); font-size: 0.9em; }
+        .dots { display: inline-flex; gap: 4px; }
+        .dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); opacity: 0.25;
+            animation: pulse 1.2s infinite ease-in-out; }
+        .dots span:nth-child(2) { animation-delay: 0.18s; }
+        .dots span:nth-child(3) { animation-delay: 0.36s; }
+        @keyframes pulse { 0%, 70%, 100% { opacity: 0.25; transform: scale(0.85); } 35% { opacity: 1; transform: scale(1.1); } }
+
+        /* eval bar */
+        #evalSection { margin-top: auto; padding-top: 18px; }
+        #evalLabels { display: flex; justify-content: space-between; font-size: 0.72em; color: var(--text-soft); margin-bottom: 5px; }
+        #evalBarWrap { height: 10px; background: #374151; border-radius: 5px; overflow: hidden; }
+        #evalBar { height: 100%; width: 50%; background: linear-gradient(90deg, #f9fafb, #e5e7eb); transition: width 0.6s cubic-bezier(.4,0,.2,1); }
+        #aiInfo { margin-top: 10px; font-size: 0.78em; color: var(--text-soft); line-height: 1.6; min-height: 44px; }
+        #aiInfo b { color: var(--text); }
+
+        footer {
+            padding: 14px 20px; text-align: center; font-size: 0.8em; color: var(--text-soft);
+            background: rgba(255,255,255,0.7); backdrop-filter: blur(6px); border-top: 1px solid #e5e7eb;
+        }
+        footer a { color: var(--text-soft); text-decoration: none; font-weight: 600; }
+        footer a:hover { color: var(--accent); }
+
+        /* promotion modal */
+        #modal-overlay { position: fixed; inset: 0; background: rgba(17,24,39,0.45); z-index: 999; display: none; }
         #promotion-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background-color: white; padding: 20px; border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000; display: none; }
-        #promotion-pieces img { width: 60px; height: 60px; cursor: pointer; margin: 5px; transition: transform 0.2s; }
-        #promotion-pieces img:hover { transform: scale(1.1); }
+            background: var(--card); padding: 22px 26px; border-radius: var(--radius);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.25); z-index: 1000; display: none; text-align: center; }
+        #promotion-dialog h4 { margin: 0 0 10px; font-size: 0.95em; }
+        #promotion-pieces img { width: 58px; height: 58px; cursor: pointer; margin: 4px; border-radius: 10px;
+            transition: transform 0.15s, background 0.15s; }
+        #promotion-pieces img:hover { transform: scale(1.12); background: var(--accent-soft); }
     </style>
 </head>
 <body>
-    <div id="app-container">
-        <div id="myBoard"></div>
-        <div id="controls">
-            <h3>Compact Chess Transformer</h3>
-            <div class="control-group">
-                <label for="strength">Strength: <span id="strengthValue">1000 nodes</span></label>
-                <input type="range" id="strength" min="0" max="6000" step="250" value="1000">
-                <div style="display:flex; justify-content:space-between; font-size:0.75em; color:#888;">
-                    <span>Greedy</span><span>6000</span>
+    <main>
+        <div id="app-container">
+            <div id="board-card"><div id="myBoard"></div></div>
+            <div id="controls">
+                <h1>♟ Compact Chess Transformer</h1>
+                <div class="subtitle">967k-Parameter-Engine · MCTS-Suche</div>
+
+                <div class="control-group">
+                    <label class="title">Spielstärke · <span id="strengthValue">1000 Knoten</span></label>
+                    <input type="range" id="strength" min="0" max="6000" step="250" value="1000">
+                    <div class="range-labels"><span>Greedy</span><span>6000</span></div>
+                </div>
+
+                <div class="control-group">
+                    <label class="title">Du spielst</label>
+                    <div class="color-options">
+                        <input type="radio" id="color-white" name="color" value="white" checked><label for="color-white">Weiß</label>
+                        <input type="radio" id="color-black" name="color" value="black"><label for="color-black">Schwarz</label>
+                        <input type="radio" id="color-random" name="color" value="random"><label for="color-random">Zufall</label>
+                    </div>
+                </div>
+
+                <button id="startButton">Neue Partie</button>
+
+                <div id="statusArea">
+                    <div id="thinking"><span class="dots"><span></span><span></span><span></span></span> Engine denkt</div>
+                    <div id="statusText"></div>
+                </div>
+
+                <div id="evalSection">
+                    <div id="evalLabels"><span>Weiß</span><span id="evalPct">50%</span></div>
+                    <div id="evalBarWrap"><div id="evalBar"></div></div>
+                    <div id="aiInfo"></div>
                 </div>
             </div>
-            <div class="control-group">
-                <label>Play as:</label><br>
-                <input type="radio" id="color-white" name="color" value="white" checked> <label for="color-white">White</label><br>
-                <input type="radio" id="color-black" name="color" value="black"> <label for="color-black">Black</label><br>
-                <input type="radio" id="color-random" name="color" value="random"> <label for="color-random">Random</label>
-            </div>
-            <button id="startButton">Start New Game</button>
-            <div id="gameStatus"></div>
-            <div id="evalBarWrap" title="White's winning chances"><div id="evalBar"></div></div>
-            <div id="aiInfo"></div>
         </div>
-    </div>
+    </main>
+
+    <footer>
+        © datascience-bonn.de · <a href="https://www.datascience-bonn.de/impressum" target="_blank" rel="noopener">Impressum</a>
+    </footer>
 
     <div id="modal-overlay"></div>
     <div id="promotion-dialog">
-        <h4>Promote Pawn to:</h4>
+        <h4>Bauer umwandeln in:</h4>
         <div id="promotion-pieces"></div>
     </div>
 
@@ -71,77 +169,80 @@
 
         function currentNodes() { return parseInt($('#strength').val(), 10); }
 
-        $('#strength').on('input', function() {
+        function updateSlider() {
             const n = currentNodes();
-            $('#strengthValue').text(n === 0 ? 'Greedy (policy only)' : n + ' nodes');
-        });
+            $('#strengthValue').text(n === 0 ? 'Greedy (nur Policy)' : n + ' Knoten');
+            $('#strength').css('--fill', (n / 6000 * 100) + '%');
+        }
+        $('#strength').on('input', updateSlider);
+
+        function setThinking(on) {
+            isThinking = on;
+            $('#thinking').css('display', on ? 'flex' : 'none');
+            if (on) $('#statusText').text('').removeClass('error final');
+        }
+
+        function setStatus(text, cls) {
+            $('#statusText').text(text || '').removeClass('error final');
+            if (cls) $('#statusText').addClass(cls);
+        }
 
         function showAiInfo(ai) {
-            if (!ai) { return; }
+            if (!ai) return;
             const pct = (ai.win_prob_white * 100).toFixed(1);
             $('#evalBar').css('width', pct + '%');
+            $('#evalPct').text(pct + '%');
             $('#aiInfo').html(
-                `AI move: <b>${ai.uci}</b><br>` +
-                `White win prob: ${pct}%<br>` +
-                `${ai.nodes.toLocaleString()} nodes, depth ${ai.depth}, ${ai.time}s`);
+                `Engine-Zug: <b>${ai.uci}</b> · Tiefe ${ai.depth}<br>` +
+                `${ai.nodes.toLocaleString('de-DE')} Knoten in ${ai.time}s`);
         }
 
         function onDragStart(source, piece) {
             if (isGameOver || isThinking) return false;
-            const playerColorInitial = playerColor.charAt(0);
-            return piece.search(new RegExp(`^${playerColorInitial}`)) !== -1;
+            return piece.search(new RegExp(`^${playerColor.charAt(0)}`)) !== -1;
         }
 
         function requestAiMove() {
-            $('#gameStatus').text('Thinking…');
             $.ajax({
-                url: "ai",
-                type: "POST",
-                contentType: "application/json",
+                url: "ai", type: "POST", contentType: "application/json",
                 data: JSON.stringify({ game_id: gameId, nodes: currentNodes() }),
                 success: function(response) {
-                    isThinking = false;
+                    setThinking(false);
                     board.position(response.fen);
                     showAiInfo(response.ai);
                     if (response.game_over) {
-                        $('#gameStatus').text(response.status);
+                        setStatus(response.status, 'final');
                         isGameOver = true;
-                    } else {
-                        $('#gameStatus').text('');
                     }
                 },
                 error: function(xhr) {
-                    isThinking = false;
-                    const msg = (xhr.responseJSON && xhr.responseJSON.error) || "Engine error";
-                    $('#gameStatus').text(msg);
+                    setThinking(false);
+                    setStatus((xhr.responseJSON && xhr.responseJSON.error) || 'Engine-Fehler', 'error');
                 }
             });
         }
 
         function sendMoveToServer(moveUci, oldPos) {
-            isThinking = true;
+            setThinking(true);
             $.ajax({
-                url: "move",
-                type: "POST",
-                contentType: "application/json",
+                url: "move", type: "POST", contentType: "application/json",
                 data: JSON.stringify({ game_id: gameId, move: moveUci }),
                 success: function(response) {
-                    // show the player's completed move (castling rook,
-                    // en-passant capture) BEFORE the engine starts thinking
+                    // Spielerzug sofort vollständig anzeigen (Rochade-Turm,
+                    // En-passant), erst danach denkt die Engine
                     board.position(response.fen);
                     if (response.game_over) {
-                        isThinking = false;
-                        $('#gameStatus').text(response.status);
+                        setThinking(false);
+                        setStatus(response.status, 'final');
                         isGameOver = true;
                         return;
                     }
                     requestAiMove();
                 },
                 error: function(xhr) {
-                    isThinking = false;
+                    setThinking(false);
                     board.position(oldPos, true);
-                    const msg = (xhr.responseJSON && xhr.responseJSON.error) || "Illegal move!";
-                    $('#gameStatus').text(msg);
+                    setStatus((xhr.responseJSON && xhr.responseJSON.error) || 'Ungültiger Zug', 'error');
                 }
             });
         }
@@ -158,7 +259,7 @@
                     $('#promotion-pieces').append(
                         `<img src="static/img/chesspieces/wikipedia/${color}${p}.png" data-piece="${p.toLowerCase()}"/>`);
                 });
-                $('#modal-overlay, #promotion-dialog').fadeIn();
+                $('#modal-overlay, #promotion-dialog').fadeIn(120);
             } else {
                 sendMoveToServer(source + target, oldPos);
             }
@@ -171,39 +272,41 @@
             onDrop: onDrop,
             pieceTheme: 'static/img/chesspieces/wikipedia/{piece}.png'
         });
+        $(window).on('resize', () => board.resize());
 
         $('#promotion-pieces').on('click', 'img', function() {
             const promotionPiece = $(this).data('piece');
             if (pendingMove.source) {
                 sendMoveToServer(pendingMove.source + pendingMove.target + promotionPiece, pendingMove.oldPos);
             }
-            $('#modal-overlay, #promotion-dialog').fadeOut();
+            $('#modal-overlay, #promotion-dialog').fadeOut(120);
             pendingMove = {};
         });
 
         $('#startButton').on('click', function() {
             const selectedColor = $('input[name="color"]:checked').val();
             isGameOver = false;
-            isThinking = true;
-            $('#gameStatus').text('Starting…');
+            setThinking(true);
             $('#aiInfo').empty();
             $('#evalBar').css('width', '50%');
+            $('#evalPct').text('50%');
             $.ajax({
                 url: "start", type: "POST", contentType: "application/json",
                 data: JSON.stringify({ color: selectedColor, nodes: currentNodes() }),
                 success: function(data) {
-                    isThinking = false;
+                    setThinking(false);
                     gameId = data.game_id;
                     playerColor = data.player_color;
-                    board.orientation(playerColor);
+                    board.orientation(playerColor === 'white' ? 'white' : 'black');
                     board.position(data.fen);
                     showAiInfo(data.ai);
-                    $('#gameStatus').text(`Playing as ${playerColor}.`);
+                    setStatus(`Du spielst ${playerColor === 'white' ? 'Weiß' : 'Schwarz'}.`);
                 }
             });
         });
 
         $(document).ready(function() {
+            updateSlider();
             $('#startButton').click();
         });
     </script>
