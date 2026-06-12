@@ -118,6 +118,9 @@ def start_game():
 
 @app.route("/move", methods=["POST"])
 def make_move():
+    """Apply the player's move only - returns immediately so the UI shows the
+    completed move (castling rook, en-passant capture) BEFORE the engine
+    starts thinking. The client then calls /ai for the reply."""
     data = request.json or {}
     game = games.get(data.get("game_id"))
     if game is None:
@@ -135,15 +138,32 @@ def make_move():
         return jsonify({"error": "Illegal move"}), 400
 
     board.push(move)
-    if board.is_game_over(claim_draw=True):
-        return jsonify({"fen": board.fen(), "game_over": True, "status": _game_status(board)})
+    over = board.is_game_over(claim_draw=True)
+    return jsonify({
+        "fen": board.fen(),
+        "game_over": over,
+        "status": _game_status(board) if over else None,
+    })
 
-    ai_move, info = predictor.get_move(board, nodes=_nodes_from_request(data),
-                                       game_id=data.get("game_id"))
+
+@app.route("/ai", methods=["POST"])
+def ai_move():
+    data = request.json or {}
+    game = games.get(data.get("game_id"))
+    if game is None:
+        return jsonify({"error": "Unknown game - start a new one"}), 404
+    board = game["board"]
+    game["ts"] = time.time()
+
+    if board.turn == game["player_color"] or board.is_game_over(claim_draw=True):
+        return jsonify({"error": "Not the engine's turn"}), 400
+
+    move, info = predictor.get_move(board, nodes=_nodes_from_request(data),
+                                    game_id=data.get("game_id"))
     ai = None
-    if ai_move:
-        board.push(ai_move)
-        ai = {"uci": ai_move.uci(), **_ai_info_json(info)}
+    if move:
+        board.push(move)
+        ai = {"uci": move.uci(), **_ai_info_json(info)}
 
     over = board.is_game_over(claim_draw=True)
     return jsonify({

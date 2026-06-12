@@ -92,14 +92,13 @@
             return piece.search(new RegExp(`^${playerColorInitial}`)) !== -1;
         }
 
-        function sendMoveToServer(moveUci, oldPos) {
-            isThinking = true;
+        function requestAiMove() {
             $('#gameStatus').text('Thinking…');
             $.ajax({
-                url: "move",
+                url: "ai",
                 type: "POST",
                 contentType: "application/json",
-                data: JSON.stringify({ game_id: gameId, move: moveUci, nodes: currentNodes() }),
+                data: JSON.stringify({ game_id: gameId, nodes: currentNodes() }),
                 success: function(response) {
                     isThinking = false;
                     board.position(response.fen);
@@ -110,6 +109,33 @@
                     } else {
                         $('#gameStatus').text('');
                     }
+                },
+                error: function(xhr) {
+                    isThinking = false;
+                    const msg = (xhr.responseJSON && xhr.responseJSON.error) || "Engine error";
+                    $('#gameStatus').text(msg);
+                }
+            });
+        }
+
+        function sendMoveToServer(moveUci, oldPos) {
+            isThinking = true;
+            $.ajax({
+                url: "move",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ game_id: gameId, move: moveUci }),
+                success: function(response) {
+                    // show the player's completed move (castling rook,
+                    // en-passant capture) BEFORE the engine starts thinking
+                    board.position(response.fen);
+                    if (response.game_over) {
+                        isThinking = false;
+                        $('#gameStatus').text(response.status);
+                        isGameOver = true;
+                        return;
+                    }
+                    requestAiMove();
                 },
                 error: function(xhr) {
                     isThinking = false;
