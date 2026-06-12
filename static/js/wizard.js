@@ -30,7 +30,6 @@
     let particleSystems = [];
     let torches = [];
     let motes = null;
-    let tracesGroup = null;
     let interactive = false;
     let orientationWhite = true;
     let camTheta = 0, camPhi = 1.12, camR = 11.0;
@@ -125,25 +124,6 @@
                     g.lineTo(x, y);
                 }
                 g.stroke();
-            }
-        });
-    }
-
-    function splatTexture() {
-        return canvasTex(128, (g, s) => {
-            const cx = s / 2;
-            const grad = g.createRadialGradient(cx, cx, 4, cx, cx, cx);
-            grad.addColorStop(0, 'rgba(8,6,10,0.85)');
-            grad.addColorStop(0.55, 'rgba(12,10,14,0.45)');
-            grad.addColorStop(1, 'rgba(12,10,14,0)');
-            g.fillStyle = grad;
-            g.fillRect(0, 0, s, s);
-            for (let i = 0; i < 30; i++) {           // irregular ash specks
-                const a = Math.random() * Math.PI * 2, d = 18 + Math.random() * 42;
-                g.fillStyle = `rgba(10,8,12,${0.15 + Math.random() * 0.4})`;
-                g.beginPath();
-                g.arc(cx + Math.cos(a) * d, cx + Math.sin(a) * d, 1 + Math.random() * 4, 0, 7);
-                g.fill();
             }
         });
     }
@@ -438,12 +418,11 @@
         moon.shadow.camera.right = moon.shadow.camera.top = 7;
         scene.add(moon);
 
+        renderer.localClippingEnabled = true;   // disintegration sweep
         scene.add(buildBoard());
         scene.add(buildCatacombs());
         buildTorches();
         buildMotes();
-        tracesGroup = new THREE.Group();
-        scene.add(tracesGroup);
 
         raycaster = new THREE.Raycaster();
         bindInput();
@@ -524,7 +503,6 @@
     function clearAll() {
         for (const sq in pieces) scene.remove(pieces[sq].mesh);
         pieces = {};
-        if (tracesGroup) tracesGroup.clear();
         if (levitation) { scene.remove(levitation.glow); levitation = null; }
         selected = null;
         tweens = [];
@@ -625,36 +603,94 @@
         shake = 0.20;
     }
 
-    function addTrace(sq) {
-        const { x, z } = sqToXZ(fileOf(sq), rankOf(sq));
-        const decal = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.85 + Math.random() * 0.2, 0.85 + Math.random() * 0.2),
-            new THREE.MeshBasicMaterial({ map: splatTexture(), transparent: true,
-                opacity: 0.0, depthWrite: false }));
-        decal.rotation.x = -Math.PI / 2;
-        decal.rotation.z = Math.random() * Math.PI * 2;
-        decal.position.set(x, BOARD_Y + 0.003 + tracesGroup.children.length * 0.0004, z);
-        tracesGroup.add(decal);
-        tween(900, k => { decal.material.opacity = 0.85 * k; });
-        // rubble chunks that stay
-        for (let i = 0; i < 5; i++) {
-            const chunk = new THREE.Mesh(
-                new THREE.TetrahedronGeometry(0.025 + Math.random() * 0.035),
-                new THREE.MeshStandardMaterial({ color: 0x191522, roughness: 0.9 }));
-            const a = Math.random() * Math.PI * 2, d = Math.random() * 0.32;
-            chunk.position.set(x + Math.cos(a) * d, BOARD_Y + 0.02, z + Math.sin(a) * d);
-            chunk.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
-            tracesGroup.add(chunk);
+    function disintegrate(pivot, mesh, basePoint, dir, height, isWhite, sideAxis) {
+        // a clipping plane sweeps from the head of the FALLEN piece toward
+        // its base; the piece visibly erodes while dense ash streams off the
+        // erosion front and drifts away with the wind. Nothing remains.
+        const mats = new Set();
+        mesh.traverse(o => { if (o.isMesh) { mats.add(o.material); o.castShadow = false; } });
+        const plane = new THREE.Plane(dir.clone().negate(), 1000);
+        mats.forEach(m => { m.clippingPlanes = [plane]; m.side = THREE.DoubleSide; });
+
+        const headPoint = basePoint.clone().add(dir.clone().multiplyScalar(height));
+        const cStart = dir.dot(headPoint) + 0.12;
+        const cEnd = dir.dot(basePoint) - 0.06;
+
+        // streaming dust pool
+        const N = 620;
+        const positions = new Float32Array(N * 3).fill(-100);
+        const vels = new Array(N);
+        let next = 0;
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const mat = new THREE.PointsMaterial({
+            map: softDot(isWhite ? 'rgba(216,206,186,0.9)' : 'rgba(110,100,130,0.9)'),
+            size: 0.085, transparent: true, opacity: 0.95, depthWrite: false });
+        const points = new THREE.Points(geo, mat);
+        scene.add(points);
+        const wind = sideAxis.clone().multiplyScalar((Math.random() < 0.5 ? -1 : 1) * (0.005 + Math.random() * 0.004));
+        wind.y = 0.011;
+        const up = new THREE.Vector3(0, 1, 0);
+
+        function spawn(front, radius, count) {
+            for (let i = 0; i < count; i++) {
+                const j = next % N;
+                next++;
+                const a = Math.random() * Math.PI * 2;
+                const r = Math.random() * radius;
+                const off = up.clone().multiplyScalar(Math.cos(a) * r + radius * 0.6)
+                    .add(sideAxis.clone().multiplyScalar(Math.sin(a) * r));
+                positions[j*3] = front.x + off.x;
+                positions[j*3+1] = Math.max(0.03, front.y + off.y);
+                positions[j*3+2] = front.z + off.z;
+                vels[j] = wind.clone().add(new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.006,
+                    Math.random() * 0.008,
+                    (Math.random() - 0.5) * 0.006));
+            }
+            geo.attributes.position.needsUpdate = true;
         }
+
+        let fading = false;
+        particleSystems.push({
+            update() {
+                const p = geo.attributes.position;
+                for (let j = 0; j < N; j++) {
+                    if (!vels[j]) continue;
+                    p.setXYZ(j, p.getX(j) + vels[j].x, p.getY(j) + vels[j].y, p.getZ(j) + vels[j].z);
+                    vels[j].multiplyScalar(0.992);
+                }
+                p.needsUpdate = true;
+                return !this.dead;
+            },
+            dispose() { scene.remove(points); geo.dispose(); mat.dispose(); },
+        });
+        const system = particleSystems[particleSystems.length - 1];
+
+        tween(1600, k => {
+            plane.constant = cStart + (cEnd - cStart) * k;
+            const front = basePoint.clone().add(dir.clone().multiplyScalar(height * (1 - k)));
+            const radius = 0.07 + 0.20 * k;          // pieces widen toward the base
+            spawn(front, radius, 6);
+        }, () => {
+            scene.remove(pivot);
+            // let the cloud drift, then breathe out
+            tween(1300, () => {}, () => {
+                tween(700, k => { mat.opacity = 0.95 * (1 - k); },
+                    () => { system.dead = true; system.dispose(); });
+            });
+        }, easeInOut);
     }
 
     function destroyPiece(entry, sq, attackDir) {
-        // staged death: topple over the base edge -> crumble -> sink -> trace
+        // staged death: topple over the base edge -> turn to ash -> the ash
+        // sweep disintegrates the piece into drifting dust. No remains.
         const mesh = entry.mesh;
         const isWhite = entry.char === entry.char.toUpperCase();
         const { x, z } = sqToXZ(fileOf(sq), rankOf(sq));
         const dir = attackDir.lengthSq() > 0 ? attackDir.clone().normalize()
                                              : new THREE.Vector3(0, 0, 1);
+        const sideAxis = new THREE.Vector3(dir.z, 0, -dir.x);
 
         // pivot at the base edge in fall direction
         const pivot = new THREE.Group();
@@ -664,34 +700,39 @@
         scene.remove(mesh);
         mesh.position.set(-dir.x * edge, 0, -dir.z * edge);
         pivot.add(mesh);
-        const axis = new THREE.Vector3(dir.z, 0, -dir.x);  // perpendicular, horizontal
 
         impactFlash({ x, z });
-        dustBurst({ x, z }, isWhite, 50, 0.035, 0.05);
+        dustBurst({ x, z }, isWhite, 40, 0.03, 0.05);
 
         tween(640, k => {
             // fall past vertical with a hard landing thud
             const ang = k < 0.85 ? (k / 0.85) * 1.45 : 1.45 + Math.sin((k - 0.85) / 0.15 * Math.PI) * 0.06;
-            pivot.setRotationFromAxisAngle(axis, ang);
+            pivot.setRotationFromAxisAngle(sideAxis.clone().negate(), -ang);
         }, () => {
-            shake = Math.max(shake, 0.13);
-            dustBurst({ x: x + dir.x * 0.7, z: z + dir.z * 0.7 }, isWhite, 70, 0.06, 0.08);
-            addTrace(sq);
-            // crumble & sink: fade all materials, drop below the board
-            mesh.traverse(o => {
-                if (o.isMesh) { o.material.transparent = true; o.castShadow = false; }
+            shake = Math.max(shake, 0.12);
+            dustBurst({ x: x + dir.x * 0.6, z: z + dir.z * 0.6 }, isWhite, 45, 0.05, 0.07);
+
+            // ashify: the stone loses its lustre before crumbling
+            const mats = new Set();
+            mesh.traverse(o => { if (o.isMesh) mats.add(o.material); });
+            const ash = new THREE.Color(isWhite ? 0xb6ac9b : 0x4b4555);
+            mats.forEach(m => {
+                const c0 = m.color.clone();
+                const cc0 = m.clearcoat || 0, tr0 = m.transmission || 0, env0 = m.envMapIntensity;
+                tween(340, k => {
+                    m.color.lerpColors(c0, ash, k);
+                    m.roughness = Math.min(1, m.roughness + k);
+                    m.clearcoat = cc0 * (1 - k);
+                    if (m.transmission !== undefined) m.transmission = tr0 * (1 - k);
+                    m.envMapIntensity = env0 * (1 - k * 0.85);
+                });
             });
-            const trickle = setInterval(() => {
-                dustBurst({ x: x + dir.x * 0.5, z: z + dir.z * 0.5 }, isWhite, 10, 0.02, 0.12);
-            }, 280);
-            tween(1700, k => {
-                pivot.position.y = BOARD_Y - k * 1.0;
-                const op = 1 - easeIn(k);
-                mesh.traverse(o => { if (o.isMesh) o.material.opacity = op; });
-            }, () => {
-                clearInterval(trickle);
-                scene.remove(pivot);
-            }, easeInOut);
+
+            // the fallen piece now lies along `dir` from the pivot point
+            const basePoint = pivot.position.clone();
+            basePoint.y = 0.12;
+            const lieDir = dir.clone();
+            setTimeout(() => disintegrate(pivot, mesh, basePoint, lieDir, 1.15, isWhite, sideAxis), 380);
         }, easeIn);
     }
 
