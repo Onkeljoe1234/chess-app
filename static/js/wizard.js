@@ -30,6 +30,7 @@
     let particleSystems = [];
     let torches = [];
     let motes = null;
+    let fxGroup = null;       // death pivots + flash lights; cleared per game
     let interactive = false;
     let orientationWhite = true;
     let camTheta = 0, camPhi = 1.12, camR = 11.0;
@@ -423,6 +424,8 @@
         scene.add(buildCatacombs());
         buildTorches();
         buildMotes();
+        fxGroup = new THREE.Group();
+        scene.add(fxGroup);
 
         raycaster = new THREE.Raycaster();
         bindInput();
@@ -444,13 +447,24 @@
     function loop(tms) {
         requestAnimationFrame(loop);
         const now = performance.now();
-        tweens = tweens.filter(tw => {
+        // Snapshot processing: done() callbacks routinely schedule FOLLOW-UP
+        // tweens (topple -> ashify -> disintegrate). A plain
+        // `tweens = tweens.filter(...)` drops anything pushed during the
+        // filter pass - that bug left un-destroyed "phantom" pieces behind.
+        const processing = tweens;
+        tweens = [];
+        const survivors = [];
+        for (const tw of processing) {
             const k = Math.min(1, (now - tw.t0) / tw.dur);
             tw.fn(tw.ease ? tw.ease(k) : k);
-            if (k >= 1 && tw.done) tw.done();
-            return k < 1;
-        });
-        particleSystems = particleSystems.filter(ps => ps.update(now));
+            if (k < 1) survivors.push(tw);
+            else if (tw.done) tw.done();
+        }
+        tweens = survivors.concat(tweens);
+        const psProcessing = particleSystems;
+        particleSystems = [];
+        const psSurvivors = psProcessing.filter(ps => ps.update(now));
+        particleSystems = psSurvivors.concat(particleSystems);
         for (const t of torches) {
             const fl = Math.sin(now * 0.011 + t.phase) * 0.18 +
                        Math.sin(now * 0.027 + t.phase * 2) * 0.10 +
@@ -503,6 +517,7 @@
     function clearAll() {
         for (const sq in pieces) scene.remove(pieces[sq].mesh);
         pieces = {};
+        if (fxGroup) fxGroup.clear();   // orphaned mid-death pivots/lights
         if (levitation) { scene.remove(levitation.glow); levitation = null; }
         selected = null;
         tweens = [];
@@ -598,8 +613,8 @@
     function impactFlash(pos) {
         const fl = new THREE.PointLight(0xffc080, 3.2, 6, 2.0);
         fl.position.set(pos.x, 1.0, pos.z);
-        scene.add(fl);
-        tween(420, k => { fl.intensity = 3.2 * (1 - k); }, () => scene.remove(fl), easeOut);
+        fxGroup.add(fl);
+        tween(420, k => { fl.intensity = 3.2 * (1 - k); }, () => fxGroup.remove(fl), easeOut);
         shake = 0.20;
     }
 
@@ -673,7 +688,7 @@
             const radius = 0.07 + 0.20 * k;          // pieces widen toward the base
             spawn(front, radius, 6);
         }, () => {
-            scene.remove(pivot);
+            fxGroup.remove(pivot);
             // let the cloud drift, then breathe out
             tween(1300, () => {}, () => {
                 tween(700, k => { mat.opacity = 0.95 * (1 - k); },
@@ -696,7 +711,7 @@
         const pivot = new THREE.Group();
         const edge = 0.30;
         pivot.position.set(x + dir.x * edge, BOARD_Y, z + dir.z * edge);
-        scene.add(pivot);
+        fxGroup.add(pivot);
         scene.remove(mesh);
         mesh.position.set(-dir.x * edge, 0, -dir.z * edge);
         pivot.add(mesh);
