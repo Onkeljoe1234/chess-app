@@ -30,8 +30,9 @@
             box-shadow: 0 10px 30px rgba(17, 24, 39, 0.08), 0 1px 3px rgba(17, 24, 39, 0.04);
         }
         #board-card { padding: 18px; }
-        #myBoard { width: min(560px, 86vw); }
+        #myBoard { width: min(560px, 86vw); touch-action: none; }
         #myBoard .board-b72b1 { border: none; border-radius: 10px; overflow: hidden; }
+        #myBoard .square-55d63.tap-selected { box-shadow: inset 0 0 0 3px var(--accent); }
 
         #controls { width: 270px; padding: 26px 24px; display: flex; flex-direction: column; }
         h1 { font-size: 1.15em; margin: 0 0 2px; letter-spacing: -0.01em; }
@@ -99,7 +100,7 @@
 
         /* wizard mode */
         #wizard3d { display: none; width: min(560px, 86vw); aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; }
-        #wizard3d canvas { display: block; width: 100% !important; height: 100% !important; }
+        #wizard3d canvas { display: block; width: 100% !important; height: 100% !important; touch-action: none; }
         .switch-row { display: flex; align-items: center; justify-content: space-between; }
         .switch-row .label { font-size: 0.9em; }
         .switch-row .hint { font-size: 0.72em; color: var(--text-soft); margin-top: 3px; }
@@ -293,8 +294,7 @@
             });
         }
 
-        function onDrop(source, target, piece, newPos, oldPos) {
-            if (source === target) return;
+        function submitMove(source, target, piece, oldPos) {
             const isPromotion = (piece === 'wP' && target.charAt(1) === '8') ||
                                 (piece === 'bP' && target.charAt(1) === '1');
             if (isPromotion) {
@@ -310,6 +310,62 @@
                 sendMoveToServer(source + target, oldPos);
             }
         }
+
+        function onDrop(source, target, piece, newPos, oldPos) {
+            // a tap on a piece arrives as a zero-distance drag: use it to
+            // (de)select for tap-to-move instead of ignoring it
+            if (source === target) { handleSquareTap(source); return; }
+            if (target === 'offboard') { clearTapSelection(); return 'snapback'; }
+            clearTapSelection();
+            submitMove(source, target, piece, oldPos);
+        }
+
+        // --- Tap-to-Move (mobil: Figur antippen, dann Zielfeld antippen) ---
+        let tapSource = null;
+        let lastTap = { sq: null, t: 0 };
+
+        function clearTapSelection() {
+            tapSource = null;
+            $('#myBoard .square-55d63').removeClass('tap-selected');
+        }
+
+        function setTapSelection(square) {
+            tapSource = square;
+            $(`#myBoard .square-${square}`).addClass('tap-selected');
+        }
+
+        function handleSquareTap(square) {
+            if (wizardOn || isGameOver || isThinking || !square) return;
+            // taps on own pieces arrive twice (chessboard drop + click) -
+            // process each physical tap once
+            const now = Date.now();
+            if (square === lastTap.sq && now - lastTap.t < 350) return;
+            lastTap = { sq: square, t: now };
+
+            const pos = board.position();
+            const ownPiece = pos[square] && pos[square].charAt(0) === playerColor.charAt(0);
+            if (tapSource === null) {
+                if (ownPiece) setTapSelection(square);
+            } else if (square === tapSource) {
+                clearTapSelection();
+            } else if (ownPiece) {
+                clearTapSelection();
+                setTapSelection(square);
+            } else {
+                const from = tapSource;
+                const piece = pos[from];
+                const oldPos = pos;
+                clearTapSelection();
+                const isPromotion = (piece === 'wP' && square.charAt(1) === '8') ||
+                                    (piece === 'bP' && square.charAt(1) === '1');
+                if (!isPromotion) board.move(from + '-' + square);
+                submitMove(from, square, piece, oldPos);
+            }
+        }
+
+        $('#myBoard').on('click', '.square-55d63', function() {
+            handleSquareTap($(this).attr('data-square'));
+        });
 
         board = Chessboard('myBoard', {
             draggable: true,
@@ -332,6 +388,7 @@
         $('#startButton').on('click', function() {
             const selectedColor = $('input[name="color"]:checked').val();
             isGameOver = false;
+            clearTapSelection();
             setThinking(true);
             $('#aiInfo').empty();
             $('#evalBar').css('width', '50%');
@@ -378,6 +435,7 @@
 
         $('#wizardToggle').on('change', function() {
             wizardOn = this.checked;
+            clearTapSelection();
             if (wizardOn && !wizardInitialized) {
                 Wizard.init(document.getElementById('wizard3d'), onWizardMove);
                 wizardInitialized = true;

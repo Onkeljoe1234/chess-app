@@ -912,10 +912,39 @@
     }
 
     function bindInput() {
-        let down = null, dragged = false;
         const el = renderer.domElement;
-        el.addEventListener('pointerdown', ev => { down = { x: ev.clientX, y: ev.clientY }; dragged = false; });
+        el.style.touchAction = 'none';   // browser gestures off: we handle pinch/drag
+        const pointers = new Map();      // pointerId -> {x, y}; 1 finger = orbit, 2 = pinch
+        let down = null, dragged = false;
+        let pinchDist = 0, pinchR = camR;
+
+        const pinchSpan = () => {
+            const [a, b] = [...pointers.values()];
+            return Math.hypot(a.x - b.x, a.y - b.y);
+        };
+
+        el.addEventListener('pointerdown', ev => {
+            if (el.setPointerCapture) { try { el.setPointerCapture(ev.pointerId); } catch (e) {} }
+            pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+            if (pointers.size === 1) {
+                down = { x: ev.clientX, y: ev.clientY };
+                dragged = false;
+            } else if (pointers.size === 2) {
+                pinchDist = pinchSpan();
+                pinchR = camR;
+                down = null;
+                dragged = true;          // a pinch never ends in a tap
+            }
+        });
+
         el.addEventListener('pointermove', ev => {
+            const p = pointers.get(ev.pointerId);
+            if (p) { p.x = ev.clientX; p.y = ev.clientY; }
+            if (pointers.size === 2 && pinchDist > 0) {
+                const d = pinchSpan();
+                if (d > 0) camR = Math.min(18, Math.max(6.5, pinchR * pinchDist / d));
+                return;
+            }
             if (!down) return;
             const dx = ev.clientX - down.x, dy = ev.clientY - down.y;
             if (Math.abs(dx) + Math.abs(dy) > 6) dragged = true;
@@ -925,8 +954,22 @@
                 down = { x: ev.clientX, y: ev.clientY };
             }
         });
+
+        const releasePointer = ev => {
+            pointers.delete(ev.pointerId);
+            if (pointers.size < 2) pinchDist = 0;
+            if (pointers.size === 1) {
+                // one finger of a pinch lifted: re-anchor the survivor for orbit
+                const [a] = [...pointers.values()];
+                down = { x: a.x, y: a.y };
+                dragged = true;
+            }
+        };
+
         el.addEventListener('pointerup', ev => {
             const wasDrag = dragged;
+            releasePointer(ev);
+            if (pointers.size > 0) return;   // another finger is still down
             down = null; dragged = false;
             if (wasDrag || !interactive) return;
             const sq = pick(ev);
@@ -943,6 +986,10 @@
                 highlight(selected, false); selected = null;
                 onMove(from, sq, pieces[from] ? pieces[from].char : null);
             }
+        });
+        el.addEventListener('pointercancel', ev => {
+            releasePointer(ev);
+            if (pointers.size === 0) { down = null; dragged = false; }
         });
         el.addEventListener('wheel', ev => {
             ev.preventDefault();
