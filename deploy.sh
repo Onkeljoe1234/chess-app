@@ -47,18 +47,22 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
+# Build FIRST — a failed build must not take the running app down.
+docker build -t $IMAGE_NAME .
+
 docker stop $CONTAINER_NAME 2>/dev/null || true
 docker rm $CONTAINER_NAME 2>/dev/null || true
 
-docker build -t $IMAGE_NAME .
-
 # 127.0.0.1 binding: the app is NOT exposed publicly; Plesk's nginx proxies
 # https://chess.datascience-bonn.de -> localhost:$PORT
+# MODEL_PATH: the staged MODEL_FILE is also the runtime model (CANON* models
+# are auto-wrapped by the engine; see engine/app_predictor.py).
 docker run -d \
   --name $CONTAINER_NAME \
   --restart unless-stopped \
   -p 127.0.0.1:$PORT:8000 \
   --env-file .env \
+  -e MODEL_PATH=/opt/cct/onnx_models/$MODEL_FILE \
   $IMAGE_NAME
 
 sleep 2

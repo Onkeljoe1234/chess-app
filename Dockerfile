@@ -31,8 +31,6 @@ COPY templates/ templates/
 COPY static/ static/
 
 ENV ORT_THREADS=4
-# Set APP_PASSWORD at runtime; empty disables auth.
-ENV APP_PASSWORD=""
 
 EXPOSE 8000
 # 1 worker, threads for concurrent games: the predictor (model session, eval
