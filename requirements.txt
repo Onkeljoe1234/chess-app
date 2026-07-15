@@ -2,4 +2,9 @@ flask
 gunicorn
 python-chess
 numpy
-onnxruntime
+tqdm
+zstandard
+dill
+onnxruntime-openvino
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch

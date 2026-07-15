@@ -5,32 +5,35 @@
 - Multi-game: each /start returns a game_id; concurrent games don't clobber
   each other (the old version had one global board).
 - Auth: HTTP Basic with a shared password from APP_PASSWORD (empty = no auth).
+
+Engine boundary: the app talks to the engine repo (compact_chess_transformers,
+mounted at CCT_ENGINE_PATH) through exactly one class — EnginePredictor with
+get_move(board, nodes, game_id) / drop_game(game_id). Search behavior, model
+format and quantization live entirely on the engine side.
 """
 import hmac
 import os
 import random
 import secrets
+import sys
 import time
-from pathlib import Path
 
 import chess
 from flask import Flask, Response, jsonify, render_template, request
 
-from predictors import MCTSPredictor
+CCT_ENGINE_PATH = os.getenv("CCT_ENGINE_PATH", "/opt/cct")
+sys.path.insert(0, CCT_ENGINE_PATH)
+from engine.app_predictor import EnginePredictor  # noqa: E402
 
-BASE_DIR = Path(__file__).parent / "models"
-MODEL_PATH = os.getenv("MODEL_PATH", str(BASE_DIR / "chess_transformer_m=XXXS_V26_ds=M.QUInt8.onnx"))
+MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(
+    CCT_ENGINE_PATH, "onnx_models",
+    "chess_transformer_m=CPU71_FEAT16_legalmask_ds=M.nncf-int8.onnx"))
 APP_PASSWORD = os.getenv("APP_PASSWORD", "")
 ORT_THREADS = int(os.getenv("ORT_THREADS", "4"))
 MAX_NODES = 6000
 MAX_GAMES = 32
 
-predictor = MCTSPredictor(
-    model_path=MODEL_PATH,
-    fen_vocab_path=BASE_DIR / "fen_vocab.json",
-    move_vocab_path=BASE_DIR / "move_vocab.json",
-    threads=ORT_THREADS,
-)
+predictor = EnginePredictor(MODEL_PATH, threads=ORT_THREADS)
 
 app = Flask(__name__)
 games = {}  # game_id -> {"board": chess.Board, "player_color": bool, "ts": float}

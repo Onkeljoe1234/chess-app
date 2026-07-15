@@ -1,13 +1,32 @@
-FROM python:3.12-slim
+# Two-stage build: chesscore (Rust MCTS core) is compiled against the image's
+# python, then the app runs on the real engine repo (synced by deploy.sh into
+# ./engine-repo, mounted at /opt/cct — see CCT_ENGINE_PATH in app.py).
 
+# --- stage 1: the chesscore wheel -------------------------------------------
+FROM python:3.12-slim AS chesscore-build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl build-essential && rm -rf /var/lib/apt/lists/*
+# rustup respects engine-repo/chesscore/rust-toolchain.toml (pinned 1.96)
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN pip install --no-cache-dir maturin
+COPY engine-repo/chesscore /src/chesscore
+RUN cd /src/chesscore && maturin build --release -i python3.12 -o /wheels
+
+# --- stage 2: the app --------------------------------------------------------
+FROM python:3.12-slim
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+COPY --from=chesscore-build /wheels/*.whl /tmp/
+RUN pip install --no-cache-dir /tmp/*.whl && rm /tmp/*.whl
+
+# the engine repo subset (engine/, config.py, data_processing/, onnx_models/)
+COPY engine-repo/ /opt/cct/
+ENV CCT_ENGINE_PATH=/opt/cct
 
 COPY app.py .
-COPY predictors/ predictors/
-COPY models/ models/
 COPY templates/ templates/
 COPY static/ static/
 
