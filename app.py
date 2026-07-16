@@ -27,7 +27,7 @@ from engine.app_predictor import EnginePredictor  # noqa: E402
 
 MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(
     CCT_ENGINE_PATH, "onnx_models",
-    "chess_transformer_m=CPU71_FEAT16_legalmask_ds=M.nncf-int8.onnx"))
+    "chess_transformer_m=CANON65_FEAT16_legalmask_ds=M.nncf-int8.onnx"))
 APP_PASSWORD = os.getenv("APP_PASSWORD", "")
 ORT_THREADS = int(os.getenv("ORT_THREADS", "4"))
 MAX_NODES = 6000

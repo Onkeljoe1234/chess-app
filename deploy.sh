@@ -13,7 +13,7 @@ echo "=== Deploying chess.datascience-bonn.de ==="
 # 0. Stage the engine-repo subset the Docker build needs (see Dockerfile).
 #    MODEL_FILE: override via env to ship a different checkpoint.
 ENGINE_SRC="${ENGINE_SRC:-/home/loupmut2/Dev/compact_chess_transformers}"
-MODEL_FILE="${MODEL_FILE:-chess_transformer_m=CPU71_FEAT16_legalmask_ds=M.nncf-int8.onnx}"
+MODEL_FILE="${MODEL_FILE:-chess_transformer_m=CANON65_FEAT16_legalmask_ds=M.nncf-int8.onnx}"
 STAGE=/home/loupmut2/Dev/chess-app/engine-repo
 echo "Staging engine subset (model: $MODEL_FILE)..."
 rm -rf "$STAGE"
