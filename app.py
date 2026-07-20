@@ -92,17 +92,19 @@ def _nodes_from_request(data, engine: str) -> int:
     return max(0, min(MAX_NODES.get(engine, 6000), nodes))
 
 
-def _game_status(board: chess.Board) -> str:
+def _game_end(board: chess.Board) -> dict:
+    """Structured end-of-game info for the client banner."""
     if board.is_checkmate():
-        winner = "White" if board.turn == chess.BLACK else "Black"
-        return f"Checkmate! {winner} wins."
-    if board.is_stalemate():
-        return "Stalemate! The game is a draw."
-    if board.is_insufficient_material():
-        return "Draw: Insufficient material."
-    if board.can_claim_draw():
-        return "Draw (repetition / 50-move rule)."
-    return "Game over."
+        reason, winner = "checkmate", ("white" if board.turn == chess.BLACK else "black")
+    elif board.is_stalemate():
+        reason, winner = "stalemate", None
+    elif board.is_insufficient_material():
+        reason, winner = "insufficient", None
+    elif board.can_claim_draw():
+        reason, winner = "draw_rule", None
+    else:
+        reason, winner = "over", None
+    return {"reason": reason, "winner": winner, "plies": len(board.move_stack)}
 
 
 def _ai_info_json(info: dict) -> dict:
@@ -175,7 +177,7 @@ def make_move():
     return jsonify({
         "fen": board.fen(),
         "game_over": over,
-        "status": _game_status(board) if over else None,
+        "end": _game_end(board) if over else None,
     })
 
 
@@ -203,7 +205,7 @@ def ai_move():
     return jsonify({
         "fen": board.fen(),
         "game_over": over,
-        "status": _game_status(board) if over else None,
+        "end": _game_end(board) if over else None,
         "ai": ai,
     })
 

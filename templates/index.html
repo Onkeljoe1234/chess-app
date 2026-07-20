@@ -29,7 +29,34 @@
             background: var(--card); border-radius: var(--radius);
             box-shadow: 0 10px 30px rgba(17, 24, 39, 0.08), 0 1px 3px rgba(17, 24, 39, 0.04);
         }
-        #board-card { padding: 18px; }
+        #board-card { padding: 18px; position: relative; }
+        /* end-of-game banner over the board */
+        #endBanner {
+            position: absolute; inset: 18px; z-index: 30; display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+            gap: 8px; border-radius: 10px; text-align: center;
+            background: rgba(15, 18, 32, 0.82); backdrop-filter: blur(3px);
+            color: #fff; animation: bannerIn 0.35s ease;
+        }
+        #endBanner.show { display: flex; }
+        #endBanner .end-title { font-size: 2em; font-weight: 800; letter-spacing: 0.5px; }
+        #endBanner.win .end-title { color: #4ade80; }
+        #endBanner.loss .end-title { color: #f87171; }
+        #endBanner.draw .end-title { color: #e2e8f0; }
+        #endBanner .end-detail { font-size: 0.95em; color: #cbd5e1; line-height: 1.5; }
+        #endBanner button {
+            margin-top: 10px; padding: 10px 22px; border: none; border-radius: 8px;
+            background: var(--accent); color: #fff; font-size: 1em; font-weight: 600;
+            cursor: pointer;
+        }
+        @keyframes bannerIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+        /* mobile: stacked cards share the board width */
+        @media (max-width: 720px) {
+            main { padding: 16px 8px; }
+            #app-container { gap: 16px; }
+            #board-card, #controls { width: min(560px, 92vw); box-sizing: border-box; }
+            #myBoard { width: 100%; }
+        }
         #myBoard { width: min(560px, 86vw); touch-action: none; }
         #myBoard .board-b72b1 { border: none; border-radius: 10px; overflow: hidden; }
         #myBoard .square-55d63.tap-selected { box-shadow: inset 0 0 0 3px var(--accent); }
@@ -126,7 +153,13 @@
 <body>
     <main>
         <div id="app-container">
-            <div id="board-card"><div id="myBoard"></div><div id="wizard3d"></div></div>
+            <div id="board-card"><div id="myBoard"></div><div id="wizard3d"></div>
+                <div id="endBanner">
+                    <div class="end-title"></div>
+                    <div class="end-detail"></div>
+                    <button id="endNewGame">Neue Partie</button>
+                </div>
+            </div>
             <div id="controls">
                 <h1>♟ Compact Chess Transformer</h1>
                 <div class="subtitle">Kompakte Transformer-Engines · MCTS-Suche</div>
@@ -196,6 +229,37 @@
         let board = null;
         let playerColor = 'white';
         let isGameOver = false;
+        let gameEngine = 'nano';
+
+        const END_REASONS = {
+            checkmate: 'Schachmatt', stalemate: 'Patt',
+            insufficient: 'Remis — ungen\u00fcgendes Material',
+            draw_rule: 'Remis — Stellungswiederholung / 50-Z\u00fcge-Regel',
+            over: 'Partie beendet'
+        };
+        function showEndBanner(end) {
+            if (!end) return;
+            const b = $('#endBanner').removeClass('win loss draw');
+            let title, cls;
+            if (!end.winner) { title = 'Remis'; cls = 'draw'; }
+            else if (end.winner === playerColor) { title = '\ud83c\udfc6 Gewonnen!'; cls = 'win'; }
+            else { title = 'Verloren'; cls = 'loss'; }
+            const moves = Math.ceil(end.plies / 2);
+            const engineName = gameEngine === 'big' ? 'ONNX 1M' : 'Nano 250k';
+            const reason = END_REASONS[end.reason] || end.reason;
+            b.addClass(cls);
+            b.find('.end-title').text(title);
+            b.find('.end-detail').html(
+                reason + '<br>' + moves + ' Z\u00fcge · Engine: ' + engineName);
+            b.addClass('show');
+        }
+        function hideEndBanner() { $('#endBanner').removeClass('show win loss draw'); }
+        $(document).on('click', '#endNewGame', function() { $('#startButton').click(); });
+        let resizeT = null;
+        $(window).on('resize', function() {
+            clearTimeout(resizeT);
+            resizeT = setTimeout(function() { if (board) board.resize(); }, 150);
+        });
         let isThinking = false;
         let gameId = null;
         let pendingMove = {};
@@ -223,7 +287,7 @@
         // up to 15k (default 10k); the ONNX engine keeps fine 250er steps
         function engineParams() {
             return $('#engineSelect').val() === 'big'
-                ? { max: 6000, step: 250, def: 1000 }
+                ? { max: 6000, step: 250, def: 4000 }
                 : { max: 15000, step: 5000, def: 10000 };
         }
         function engineMax() { return engineParams().max; }
@@ -278,7 +342,7 @@
                     applyFen(response.fen);
                     showAiInfo(response.ai);
                     if (response.game_over) {
-                        setStatus(response.status, 'final');
+                        showEndBanner(response.end);
                         isGameOver = true;
                         updateInteractive();
                     }
@@ -301,7 +365,7 @@
                     applyFen(response.fen);
                     if (response.game_over) {
                         setThinking(false);
-                        setStatus(response.status, 'final');
+                        showEndBanner(response.end);
                         isGameOver = true;
                         updateInteractive();
                         return;
@@ -422,6 +486,8 @@
                 success: function(data) {
                     gameId = data.game_id;
                     playerColor = data.player_color;
+                    gameEngine = data.engine || $('#engineSelect').val();
+                    hideEndBanner();
                     board.orientation(playerColor === 'white' ? 'white' : 'black');
                     if (wizardOn) {
                         Wizard.setOrientation(playerColor);
