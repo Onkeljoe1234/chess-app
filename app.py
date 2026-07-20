@@ -30,7 +30,7 @@ MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(
     "chess_transformer_m=CANON65_FEAT16_legalmask_ds=M.nncf-int8.onnx"))
 APP_PASSWORD = os.getenv("APP_PASSWORD", "")
 ORT_THREADS = int(os.getenv("ORT_THREADS", "4"))
-MAX_NODES = 6000
+MAX_NODES = {"nano": 15000, "big": 6000}   # nano runs ~4x the evals/s
 MAX_GAMES = 32
 
 # Two engines, lazily constructed. "nano" (default): the 250k model inside
@@ -84,12 +84,12 @@ def _evict_old_games():
             p.drop_game(oldest)
 
 
-def _nodes_from_request(data) -> int:
+def _nodes_from_request(data, engine: str) -> int:
     try:
         nodes = int(data.get("nodes", 1000))
     except (TypeError, ValueError):
         nodes = 1000
-    return max(0, min(MAX_NODES, nodes))
+    return max(0, min(MAX_NODES.get(engine, 6000), nodes))
 
 
 def _game_status(board: chess.Board) -> str:
@@ -123,9 +123,8 @@ def index():
 def start_game():
     data = request.json or {}
     color = data.get("color", "white")
-    nodes = _nodes_from_request(data)
-
     engine = _engine_from_request(data)
+    nodes = _nodes_from_request(data, engine)
     player_color = chess.WHITE if color == "white" else \
         chess.BLACK if color == "black" else random.choice([chess.WHITE, chess.BLACK])
     game_id = secrets.token_hex(8)
@@ -192,8 +191,9 @@ def ai_move():
     if board.turn == game["player_color"] or board.is_game_over(claim_draw=True):
         return jsonify({"error": "Not the engine's turn"}), 400
 
-    move, info = get_predictor(game.get("engine", DEFAULT_ENGINE)).get_move(
-        board, nodes=_nodes_from_request(data), game_id=data.get("game_id"))
+    eng = game.get("engine", DEFAULT_ENGINE)
+    move, info = get_predictor(eng).get_move(
+        board, nodes=_nodes_from_request(data, eng), game_id=data.get("game_id"))
     ai = None
     if move:
         board.push(move)

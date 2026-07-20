@@ -129,12 +129,12 @@
             <div id="board-card"><div id="myBoard"></div><div id="wizard3d"></div></div>
             <div id="controls">
                 <h1>♟ Compact Chess Transformer</h1>
-                <div class="subtitle">967k-Parameter-Engine · MCTS-Suche</div>
+                <div class="subtitle">Kompakte Transformer-Engines · MCTS-Suche</div>
 
                 <div class="control-group">
                     <label class="title">Spielstärke · <span id="strengthValue">1000 Knoten</span></label>
-                    <input type="range" id="strength" min="0" max="6000" step="250" value="1000">
-                    <div class="range-labels"><span>Greedy</span><span>6000</span></div>
+                    <input type="range" id="strength" min="0" max="15000" step="250" value="1000">
+                    <div class="range-labels"><span>Greedy</span><span id="strengthMax">15000</span></div>
                 </div>
 
                 <div class="control-group">
@@ -156,8 +156,7 @@
                 <div class="control-group">
                     <div class="switch-row">
                         <div>
-                            <div class="label">⚡ Zauberschach</div>
-                            <div class="hint">3D-Modus — Figuren werden geschlagen. Wirklich.</div>
+                            <div class="label">3D-Ansicht</div>
                         </div>
                         <label class="toggle"><input type="checkbox" id="wizardToggle"><span class="track"></span></label>
                     </div>
@@ -220,12 +219,24 @@
             if (wizardOn) Wizard.setInteractive(!isThinking && !isGameOver);
         }
 
+        function engineMax() {
+            return $('#engineSelect').val() === 'big' ? 6000 : 15000;
+        }
+        function applyEngineMax() {
+            const max = engineMax();
+            const s = $('#strength');
+            s.attr('max', max);
+            if (currentNodes() > max) s.val(max);
+            $('#strengthMax').text(max.toLocaleString('de-DE'));
+            updateSlider();
+        }
         function updateSlider() {
             const n = currentNodes();
             $('#strengthValue').text(n === 0 ? 'Greedy (nur Policy)' : n + ' Knoten');
-            $('#strength').css('--fill', (n / 6000 * 100) + '%');
+            $('#strength').css('--fill', (n / engineMax() * 100) + '%');
         }
         $('#strength').on('input', updateSlider);
+        $('#engineSelect').on('change', applyEngineMax);
 
         function setThinking(on) {
             isThinking = on;
@@ -422,7 +433,7 @@
             });
         });
 
-        // --- Zauberschach (3D) -------------------------------------------
+        // --- 3D-Ansicht (3D) -------------------------------------------
 
         function onWizardMove(fromSq, toSq, pieceChar) {
             const isPromotion = pieceChar && pieceChar.toLowerCase() === 'p' &&
