@@ -33,7 +33,34 @@ ORT_THREADS = int(os.getenv("ORT_THREADS", "4"))
 MAX_NODES = 6000
 MAX_GAMES = 32
 
-predictor = EnginePredictor(MODEL_PATH, threads=ORT_THREADS)
+# Two engines, lazily constructed. "nano" (default): the 250k model inside
+# the self-contained nano binary (~0.5 MB engine+weights), opening variety
+# on. "big": the 1M CANON65 ship model through the Python/ONNX stack.
+NANO_BIN = os.getenv("NANO_BIN", os.path.join(CCT_ENGINE_PATH, "nano", "nano_app"))
+NANO_WEIGHTS = os.getenv("NANO_WEIGHTS",
+                         os.path.join(CCT_ENGINE_PATH, "nano", "cct250k.bin"))
+NANO_THREADS = int(os.getenv("NANO_THREADS", "4"))
+NANO_VARIETY = float(os.getenv("NANO_VARIETY", "0.7"))
+DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "nano")
+ENGINES = ("nano", "big")
+
+_predictors = {}
+
+
+def get_predictor(name: str):
+    if name not in _predictors:
+        if name == "nano":
+            from engine.nano_predictor import NanoPredictor
+            _predictors["nano"] = NanoPredictor(
+                NANO_BIN, NANO_WEIGHTS, threads=NANO_THREADS, variety=NANO_VARIETY)
+        else:
+            _predictors["big"] = EnginePredictor(MODEL_PATH, threads=ORT_THREADS)
+    return _predictors[name]
+
+
+def _engine_from_request(data) -> str:
+    e = data.get("engine", DEFAULT_ENGINE)
+    return e if e in ENGINES else DEFAULT_ENGINE
 
 app = Flask(__name__)
 games = {}  # game_id -> {"board": chess.Board, "player_color": bool, "ts": float}
@@ -53,7 +80,8 @@ def _evict_old_games():
     while len(games) > MAX_GAMES:
         oldest = min(games, key=lambda g: games[g]["ts"])
         games.pop(oldest, None)
-        predictor.drop_game(oldest)
+        for p in _predictors.values():
+            p.drop_game(oldest)
 
 
 def _nodes_from_request(data) -> int:
@@ -97,16 +125,18 @@ def start_game():
     color = data.get("color", "white")
     nodes = _nodes_from_request(data)
 
+    engine = _engine_from_request(data)
     player_color = chess.WHITE if color == "white" else \
         chess.BLACK if color == "black" else random.choice([chess.WHITE, chess.BLACK])
     game_id = secrets.token_hex(8)
     board = chess.Board()
-    games[game_id] = {"board": board, "player_color": player_color, "ts": time.time()}
+    games[game_id] = {"board": board, "player_color": player_color,
+                      "engine": engine, "ts": time.time()}
     _evict_old_games()
 
     ai = None
     if board.turn != player_color:
-        move, info = predictor.get_move(board, nodes=nodes, game_id=game_id)
+        move, info = get_predictor(engine).get_move(board, nodes=nodes, game_id=game_id)
         if move:
             board.push(move)
             ai = {"uci": move.uci(), **_ai_info_json(info)}
@@ -115,6 +145,7 @@ def start_game():
         "game_id": game_id,
         "fen": board.fen(),
         "player_color": "white" if player_color == chess.WHITE else "black",
+        "engine": engine,
         "ai": ai,
     })
 
@@ -161,8 +192,8 @@ def ai_move():
     if board.turn == game["player_color"] or board.is_game_over(claim_draw=True):
         return jsonify({"error": "Not the engine's turn"}), 400
 
-    move, info = predictor.get_move(board, nodes=_nodes_from_request(data),
-                                    game_id=data.get("game_id"))
+    move, info = get_predictor(game.get("engine", DEFAULT_ENGINE)).get_move(
+        board, nodes=_nodes_from_request(data), game_id=data.get("game_id"))
     ai = None
     if move:
         board.push(move)
