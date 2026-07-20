@@ -132,8 +132,8 @@
                 <div class="subtitle">Kompakte Transformer-Engines · MCTS-Suche</div>
 
                 <div class="control-group">
-                    <label class="title">Spielstärke · <span id="strengthValue">1000 Knoten</span></label>
-                    <input type="range" id="strength" min="0" max="15000" step="250" value="1000">
+                    <label class="title">Spielstärke · <span id="strengthValue">10000 Knoten</span></label>
+                    <input type="range" id="strength" min="0" max="15000" step="5000" value="10000">
                     <div class="range-labels"><span>Greedy</span><span id="strengthMax">15000</span></div>
                 </div>
 
@@ -219,15 +219,19 @@
             if (wizardOn) Wizard.setInteractive(!isThinking && !isGameOver);
         }
 
-        function engineMax() {
-            return $('#engineSelect').val() === 'big' ? 6000 : 15000;
+        // per-engine slider shape: nano is ~4x faster -> coarse 5k steps
+        // up to 15k (default 10k); the ONNX engine keeps fine 250er steps
+        function engineParams() {
+            return $('#engineSelect').val() === 'big'
+                ? { max: 6000, step: 250, def: 1000 }
+                : { max: 15000, step: 5000, def: 10000 };
         }
+        function engineMax() { return engineParams().max; }
         function applyEngineMax() {
-            const max = engineMax();
+            const p = engineParams();
             const s = $('#strength');
-            s.attr('max', max);
-            if (currentNodes() > max) s.val(max);
-            $('#strengthMax').text(max.toLocaleString('de-DE'));
+            s.attr('max', p.max).attr('step', p.step).val(p.def);
+            $('#strengthMax').text(p.max.toLocaleString('de-DE'));
             updateSlider();
         }
         function updateSlider() {
