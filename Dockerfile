@@ -12,6 +12,10 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN pip install --no-cache-dir maturin
 COPY engine-repo/chesscore /src/chesscore
 RUN cd /src/chesscore && maturin build --release -i python3.12 -o /wheels
+# nano: portable build (x86-64-v3 — the Strato host has AVX2/FMA/BMI2, no
+# VNNI), compiled against the IMAGE's glibc so the host version is moot
+COPY engine-repo/nano /src/nano
+RUN cd /src/nano && make app
 
 # --- stage 2: the app --------------------------------------------------------
 FROM python:3.12-slim
@@ -24,7 +28,9 @@ RUN pip install --no-cache-dir /tmp/*.whl && rm /tmp/*.whl
 
 # the engine repo subset (engine/, config.py, data_processing/, onnx_models/)
 COPY engine-repo/ /opt/cct/
+COPY --from=chesscore-build /src/nano/nano_app /opt/cct/nano/nano_app
 ENV CCT_ENGINE_PATH=/opt/cct
+ENV NANO_THREADS=4
 
 COPY app.py .
 COPY templates/ templates/

@@ -23,6 +23,10 @@ rsync -rq --exclude '__pycache__' \
 rsync -rq --exclude target --exclude '__pycache__' "$ENGINE_SRC/chesscore" "$STAGE/"
 cp "$ENGINE_SRC/config.py" "$STAGE/"
 cp "$ENGINE_SRC/onnx_models/$MODEL_FILE" "$STAGE/onnx_models/"
+# nano: sources (built in-container against the image glibc — the host
+# runs glibc 2.31, dev-box binaries would not load) + the 250k weights
+mkdir -p "$STAGE/nano"
+cp "$ENGINE_SRC"/nano/{nano.c,chess.c,search.c,chess.h,nano_math.h,Makefile,cct250k.bin} "$STAGE/nano/"
 
 # 1. Sync files to server
 echo "Syncing files..."
