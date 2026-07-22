@@ -366,10 +366,11 @@
             const c = $('#evalSection').toggleClass('collapsed').hasClass('collapsed');
             try { localStorage.setItem('evalCollapsed', c ? '1' : '0'); } catch (e) {}
         });
+        // default COLLAPSED — only an explicit open (stored '0') survives
         try {
-            if (localStorage.getItem('evalCollapsed') === '1')
+            if (localStorage.getItem('evalCollapsed') !== '0')
                 $('#evalSection').addClass('collapsed');
-        } catch (e) {}
+        } catch (e) { $('#evalSection').addClass('collapsed'); }
 
         function setThinking(on) {
             isThinking = on;
