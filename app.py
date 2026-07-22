@@ -40,9 +40,9 @@ DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "pico")
 # evals/s). The UI stays minimal: the select shows name + exact params.
 TIER_UI = {
     "nano":  dict(max_nodes=6000, def_nodes=4000),
-    "pico":  dict(max_nodes=15000, def_nodes=10000),
-    "femto": dict(max_nodes=15000, def_nodes=10000),
-    "atto":  dict(max_nodes=15000, def_nodes=10000),
+    "pico":  dict(max_nodes=30000, def_nodes=10000),
+    "femto": dict(max_nodes=30000, def_nodes=10000),
+    "atto":  dict(max_nodes=30000, def_nodes=10000),
 }
 ENGINES = tuple(TIERS)
 _LEGACY = {"big": "nano"}          # pre-catalog client keys
@@ -57,10 +57,20 @@ def get_predictor(name: str):
     return _predictors[name]
 
 
+def _kb(path: str) -> int:
+    try:
+        return round(os.path.getsize(path) / 1024)
+    except OSError:
+        return 0
+
+
 def tier_payload():
-    """Static tier metadata for the template (select + model info box)."""
+    """Static tier metadata for the template. Sizes are measured from the
+    ACTUAL files (in-container: the staged weights and the binaries built
+    against the image glibc) — no hand-maintained byte counts."""
     return [{"key": k, "display": t.display, "params": t.params,
              "min_nodes": t.min_nodes, "node_step": t.node_step,
+             "weights_kb": _kb(t.weights_path), "engine_kb": _kb(t.binary_path),
              **TIER_UI[k]} for k, t in TIERS.items()]
 
 

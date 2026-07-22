@@ -199,7 +199,7 @@
                 <div id="headerRow">
                     <div>
                         <h1>♟ Compact Chess Transformer</h1>
-                        <div class="subtitle">MCTS-Suche</div>
+                        <div class="subtitle">MCTS-Suche · <span id="engineKb"></span></div>
                     </div>
                     <button id="startButton">Neue Partie</button>
                 </div>
@@ -217,7 +217,7 @@
                     <label class="title" for="engineSelect">Engine</label>
                     <select id="engineSelect">
                         {% for t in tiers %}
-                        <option value="{{ t.key }}"{% if t.key == default_engine %} selected{% endif %}>{{ t.display }} ({{ "{:,}".format(t.params).replace(",", ".") }} Parameter)</option>
+                        <option value="{{ t.key }}"{% if t.key == default_engine %} selected{% endif %}>{{ t.display }} ({{ t.weights_kb }} KB)</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -296,7 +296,7 @@
             else { title = 'Verloren'; cls = 'loss'; }
             const moves = Math.ceil(end.plies / 2);
             const t = TIERS[gameEngine];
-            const engineName = t ? `${t.display} (${t.params.toLocaleString('de-DE')} Parameter)` : gameEngine;
+            const engineName = t ? `${t.display} (${t.weights_kb} KB)` : gameEngine;
             const reason = END_REASONS[end.reason] || end.reason;
             b.addClass(cls);
             b.find('.end-title').text(title);
@@ -357,6 +357,7 @@
             s.val(t.def_nodes);
             $('#strengthMin').text(fmtK(t.min_nodes));
             $('#strengthMax').text(fmtK(t.max_nodes));
+            $('#engineKb').text(t.engine_kb + ' KB Engine');
             updateSlider();
         }
         function updateSlider() {
