@@ -35,28 +35,14 @@ DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "pico")
 
 # All four tiers run on the nano engine (the app is ONNX-free since the 1M
 # model's nano port). Engine-side truth (exact params, min_nodes, binaries)
-# lives in engine.app_models; ONLY app/UI concerns live here: node caps &
-# defaults per tier (caps ~match wall-clock: the 1M model runs ~1/4 the
-# evals/s), display copy for the model info box, and the strength-estimate
-# anchors (measured 30s+0.3 gauntlets, SF16 UCI-Elo scale; ~130 Elo per
-# node doubling — the throughput keystone).
+# lives in engine.app_models; ONLY app/UI concerns live here: per-tier node
+# caps & defaults (caps ~match wall-clock — the 1M model runs ~1/4 the
+# evals/s). The UI stays minimal: the select shows name + exact params.
 TIER_UI = {
-    "nano":  dict(max_nodes=6000, def_nodes=4000, size="1,0 MB Gewichte",
-                  anchor=3000, anchor_nodes=30000,
-                  desc="Das 1M-Turniermodell auf der Nano-Engine — stärkste "
-                       "Bewertung pro Knoten, dafür ~4× langsamer."),
-    "pico":  dict(max_nodes=15000, def_nodes=10000, size="273 KB Gewichte",
-                  anchor=2865, anchor_nodes=25000,
-                  desc="Das 250K-Referenzmodell — die beste Balance aus "
-                       "Stärke und Tempo. Engine + Gewichte ≈ 430 KB."),
-    "femto": dict(max_nodes=15000, def_nodes=10000, size="170 KB Gewichte",
-                  anchor=2815, anchor_nodes=25000,
-                  desc="Weight-Sharing: zwei Encoder-Blöcke, je zweimal "
-                       "angewendet — volle Rechentiefe aus 137K Parametern."),
-    "atto":  dict(max_nodes=15000, def_nodes=10000, size="118 KB Gewichte",
-                  anchor=2700, anchor_nodes=25000,
-                  desc="Ein Encoder-Block, viermal angewendet — das "
-                       "kleinste Modell der Familie."),
+    "nano":  dict(max_nodes=6000, def_nodes=4000),
+    "pico":  dict(max_nodes=15000, def_nodes=10000),
+    "femto": dict(max_nodes=15000, def_nodes=10000),
+    "atto":  dict(max_nodes=15000, def_nodes=10000),
 }
 ENGINES = tuple(TIERS)
 _LEGACY = {"big": "nano"}          # pre-catalog client keys

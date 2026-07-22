@@ -50,8 +50,9 @@
             cursor: pointer;
         }
         @keyframes bannerIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
-        /* mobile: stacked cards share EXACTLY the board-card width */
-        @media (max-width: 720px) {
+        /* stacked layout (the flex wrap point, NOT just phone width): both
+         * cards share EXACTLY the same width */
+        @media (max-width: 960px) {
             main { padding: 10px 8px; }
             #app-container { gap: 12px; }
             #board-card, #controls { width: min(596px, calc(100vw - 16px)); box-sizing: border-box; }
@@ -118,7 +119,7 @@
         .dots span:nth-child(3) { animation-delay: 0.36s; }
         @keyframes pulse { 0%, 70%, 100% { opacity: 0.25; transform: scale(0.85); } 35% { opacity: 1; transform: scale(1.1); } }
 
-        /* engine select + model info box */
+        /* engine select */
         select#engineSelect {
             width: 100%; padding: 9px 10px; font-size: 0.88em; color: var(--text);
             border: 1.5px solid #e5e7eb; border-radius: 10px; background: #fff;
@@ -126,19 +127,6 @@
             background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");
             background-repeat: no-repeat; background-position: right 12px center;
         }
-        #engineInfo {
-            margin-top: 10px; padding: 11px 13px; border-radius: 12px;
-            background: linear-gradient(135deg, var(--accent-soft), #f8f9ff);
-            border: 1px solid #e0e5ff; font-size: 0.78em; line-height: 1.55;
-            color: var(--text-soft);
-        }
-        #engineInfo .ei-head { display: flex; justify-content: space-between; align-items: baseline;
-            color: var(--text); font-weight: 700; margin-bottom: 3px; }
-        #engineInfo .ei-size { font-weight: 500; color: var(--accent); font-size: 0.92em; white-space: nowrap; }
-        #engineInfo .ei-elo { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #d6dcff;
-            color: var(--text); }
-        #engineInfo .ei-elo b { color: var(--accent); }
-        #engineInfo .ei-note { font-size: 0.86em; margin-top: 2px; }
 
         /* eval bar (collapsible) */
         #evalSection { margin-top: auto; padding-top: 12px; }
@@ -223,7 +211,6 @@
                         <option value="{{ t.key }}"{% if t.key == default_engine %} selected{% endif %}>{{ t.display }} &mdash; {{ "{:,}".format(t.params).replace(",", ".") }} Parameter</option>
                         {% endfor %}
                     </select>
-                    <div id="engineInfo"></div>
                 </div>
 
                 <div class="control-group">
@@ -370,25 +357,6 @@
                   lo = parseInt(s.attr('min'), 10),
                   hi = parseInt(s.attr('max'), 10);
             s.css('--fill', ((v - lo) / (hi - lo) * 100) + '%');
-            renderEngineInfo();
-        }
-
-        // model info box: what the engine is, how small it is, and the
-        // estimated strength at the CURRENT node budget (measured anchors,
-        // ~130 Elo per node doubling)
-        function eloEstimate(t, nodes) {
-            const e = t.anchor - 130 * Math.log2(t.anchor_nodes / Math.max(nodes, 1));
-            return Math.round(e / 5) * 5;
-        }
-        function renderEngineInfo() {
-            const t = TIERS[$('#engineSelect').val()];
-            const n = currentNodes();
-            $('#engineInfo').html(
-                `<div class="ei-head"><span>${t.display}</span>` +
-                `<span class="ei-size">${t.params.toLocaleString('de-DE')} Parameter · ${t.size}</span></div>` +
-                `<div>${t.desc}</div>` +
-                `<div class="ei-elo">Geschätzte Spielstärke: <b>~${eloEstimate(t, n).toLocaleString('de-DE')} Elo</b> bei ${fmtK(n)} Knoten/Zug</div>` +
-                `<div class="ei-note">SF16-UCI-Skala · Anker: 30s+0.3-Gauntlets · ~130 Elo pro Knoten-Verdopplung</div>`);
         }
         $('#strength').on('input', updateSlider);
         $('#engineSelect').on('change', applyEngineParams);
