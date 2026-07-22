@@ -1,15 +1,17 @@
-"""Chess app: play against the compact transformer (ONNX, CPU) with MCTS.
+"""Chess app: play against the compact-transformer family (nano engine, CPU).
 
-- One opponent: the <1M-param transformer with batched MCTS; the strength
-  slider sets NN evaluations per move (0 = greedy policy).
+- Four tiers (Nano 961,942 / Pico 236,182 / Femto 137,046 / Atto 87,478
+  exact params), all on the self-contained nano UCI engine — the app is
+  ONNX-free. The strength slider sets NN evaluations per move; greedy is
+  not offered (per-tier min-node floors, enforced engine-side too).
 - Multi-game: each /start returns a game_id; concurrent games don't clobber
-  each other (the old version had one global board).
+  each other.
 - Auth: HTTP Basic with a shared password from APP_PASSWORD (empty = no auth).
 
 Engine boundary: the app talks to the engine repo (compact_chess_transformers,
-mounted at CCT_ENGINE_PATH) through exactly one class — EnginePredictor with
-get_move(board, nodes, game_id) / drop_game(game_id). Search behavior, model
-format and quantization live entirely on the engine side.
+mounted at CCT_ENGINE_PATH) through engine.app_models.make_predictor —
+NanoPredictor with get_move(board, nodes, game_id) / drop_game(game_id).
+Search behavior, model format and quantization live on the engine side.
 """
 import hmac
 import os
@@ -23,43 +25,62 @@ from flask import Flask, Response, jsonify, render_template, request
 
 CCT_ENGINE_PATH = os.getenv("CCT_ENGINE_PATH", "/opt/cct")
 sys.path.insert(0, CCT_ENGINE_PATH)
-from engine.app_predictor import EnginePredictor  # noqa: E402
+from engine.app_models import TIERS, make_predictor  # noqa: E402
 
-MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(
-    CCT_ENGINE_PATH, "onnx_models",
-    "chess_transformer_m=CANON65_FEAT16_legalmask_ds=M.nncf-int8.onnx"))
 APP_PASSWORD = os.getenv("APP_PASSWORD", "")
-ORT_THREADS = int(os.getenv("ORT_THREADS", "4"))
-MAX_NODES = {"nano": 15000, "big": 6000}   # nano runs ~4x the evals/s
 MAX_GAMES = 32
-
-# Two engines, lazily constructed. "nano" (default): the 250k model inside
-# the self-contained nano binary (~0.5 MB engine+weights), opening variety
-# on. "big": the 1M CANON65 ship model through the Python/ONNX stack.
-NANO_BIN = os.getenv("NANO_BIN", os.path.join(CCT_ENGINE_PATH, "nano", "nano_app"))
-NANO_WEIGHTS = os.getenv("NANO_WEIGHTS",
-                         os.path.join(CCT_ENGINE_PATH, "nano", "cct250k.bin"))
 NANO_THREADS = int(os.getenv("NANO_THREADS", "4"))
 NANO_VARIETY = float(os.getenv("NANO_VARIETY", "0.7"))
-DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "nano")
-ENGINES = ("nano", "big")
+DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "pico")
+
+# All four tiers run on the nano engine (the app is ONNX-free since the 1M
+# model's nano port). Engine-side truth (exact params, min_nodes, binaries)
+# lives in engine.app_models; ONLY app/UI concerns live here: node caps &
+# defaults per tier (caps ~match wall-clock: the 1M model runs ~1/4 the
+# evals/s), display copy for the model info box, and the strength-estimate
+# anchors (measured 30s+0.3 gauntlets, SF16 UCI-Elo scale; ~130 Elo per
+# node doubling — the throughput keystone).
+TIER_UI = {
+    "nano":  dict(max_nodes=6000, def_nodes=4000, size="1,0 MB Gewichte",
+                  anchor=3000, anchor_nodes=30000,
+                  desc="Das 1M-Turniermodell auf der Nano-Engine — stärkste "
+                       "Bewertung pro Knoten, dafür ~4× langsamer."),
+    "pico":  dict(max_nodes=15000, def_nodes=10000, size="273 KB Gewichte",
+                  anchor=2865, anchor_nodes=25000,
+                  desc="Das 250K-Referenzmodell — die beste Balance aus "
+                       "Stärke und Tempo. Engine + Gewichte ≈ 430 KB."),
+    "femto": dict(max_nodes=15000, def_nodes=10000, size="170 KB Gewichte",
+                  anchor=2815, anchor_nodes=25000,
+                  desc="Weight-Sharing: zwei Encoder-Blöcke, je zweimal "
+                       "angewendet — volle Rechentiefe aus 137K Parametern."),
+    "atto":  dict(max_nodes=15000, def_nodes=10000, size="118 KB Gewichte",
+                  anchor=2700, anchor_nodes=25000,
+                  desc="Ein Encoder-Block, viermal angewendet — das "
+                       "kleinste Modell der Familie."),
+}
+ENGINES = tuple(TIERS)
+_LEGACY = {"big": "nano"}          # pre-catalog client keys
 
 _predictors = {}
 
 
 def get_predictor(name: str):
     if name not in _predictors:
-        if name == "nano":
-            from engine.nano_predictor import NanoPredictor
-            _predictors["nano"] = NanoPredictor(
-                NANO_BIN, NANO_WEIGHTS, threads=NANO_THREADS, variety=NANO_VARIETY)
-        else:
-            _predictors["big"] = EnginePredictor(MODEL_PATH, threads=ORT_THREADS)
+        _predictors[name] = make_predictor(
+            name, threads=NANO_THREADS, variety=NANO_VARIETY)
     return _predictors[name]
+
+
+def tier_payload():
+    """Static tier metadata for the template (select + model info box)."""
+    return [{"key": k, "display": t.display, "params": t.params,
+             "min_nodes": t.min_nodes, "node_step": t.node_step,
+             **TIER_UI[k]} for k, t in TIERS.items()]
 
 
 def _engine_from_request(data) -> str:
     e = data.get("engine", DEFAULT_ENGINE)
+    e = _LEGACY.get(e, e)
     return e if e in ENGINES else DEFAULT_ENGINE
 
 app = Flask(__name__)
@@ -89,7 +110,9 @@ def _nodes_from_request(data, engine: str) -> int:
         nodes = int(data.get("nodes", 1000))
     except (TypeError, ValueError):
         nodes = 1000
-    return max(0, min(MAX_NODES.get(engine, 6000), nodes))
+    # tier floor (greedy is not offered — the predictors floor too) and cap
+    return max(TIERS[engine].min_nodes,
+               min(TIER_UI[engine]["max_nodes"], nodes))
 
 
 def _game_end(board: chess.Board) -> dict:
@@ -118,7 +141,8 @@ def _ai_info_json(info: dict) -> dict:
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", tiers=tier_payload(),
+                           default_engine=DEFAULT_ENGINE)
 
 
 @app.route("/start", methods=["POST"])

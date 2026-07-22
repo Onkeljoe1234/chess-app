@@ -50,22 +50,30 @@
             cursor: pointer;
         }
         @keyframes bannerIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
-        /* mobile: stacked cards share the board width */
+        /* mobile: stacked cards share EXACTLY the board-card width */
         @media (max-width: 720px) {
-            main { padding: 16px 8px; }
-            #app-container { gap: 16px; }
-            #board-card, #controls { width: min(560px, 92vw); box-sizing: border-box; }
+            main { padding: 10px 8px; }
+            #app-container { gap: 12px; }
+            #board-card, #controls { width: min(596px, calc(100vw - 16px)); box-sizing: border-box; }
+            #controls { padding: 16px 18px; }
             #myBoard { width: 100%; }
+            .control-group { margin-bottom: 12px; }
+            .subtitle { margin-bottom: 0; }
         }
         #myBoard { width: min(560px, 86vw); touch-action: none; }
         #myBoard .board-b72b1 { border: none; border-radius: 10px; overflow: hidden; }
         #myBoard .square-55d63.tap-selected { box-shadow: inset 0 0 0 3px var(--accent); }
 
-        #controls { width: 270px; padding: 26px 24px; display: flex; flex-direction: column; }
-        h1 { font-size: 1.15em; margin: 0 0 2px; letter-spacing: -0.01em; }
-        .subtitle { font-size: 0.78em; color: var(--text-soft); margin-bottom: 22px; }
+        #controls { width: 300px; padding: 22px 22px; display: flex; flex-direction: column; }
+        h1 { font-size: 1.02em; margin: 0 0 2px; letter-spacing: -0.01em; }
+        .subtitle { font-size: 0.74em; color: var(--text-soft); }
 
-        .control-group { margin-bottom: 22px; }
+        /* header row: description left, "Neue Partie" right, colors below */
+        #headerRow { display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; margin-bottom: 14px; }
+        #headerRow > div { min-width: 0; }
+
+        .control-group { margin-bottom: 16px; }
         .control-group > label.title { display: block; font-size: 0.78em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-soft); margin-bottom: 8px; }
         #strengthValue { color: var(--accent); font-weight: 700; text-transform: none; letter-spacing: 0; }
 
@@ -89,9 +97,9 @@
         }
 
         button#startButton {
-            width: 100%; padding: 12px; font-size: 0.95em; font-weight: 600; cursor: pointer;
-            color: #fff; background: var(--accent); border: none; border-radius: 12px;
-            transition: background 0.15s, transform 0.05s;
+            flex: none; padding: 10px 16px; font-size: 0.88em; font-weight: 600; cursor: pointer;
+            color: #fff; background: var(--accent); border: none; border-radius: 10px;
+            transition: background 0.15s, transform 0.05s; white-space: nowrap;
         }
         button#startButton:hover { background: #4338ca; }
         button#startButton:active { transform: scale(0.98); }
@@ -110,8 +118,38 @@
         .dots span:nth-child(3) { animation-delay: 0.36s; }
         @keyframes pulse { 0%, 70%, 100% { opacity: 0.25; transform: scale(0.85); } 35% { opacity: 1; transform: scale(1.1); } }
 
-        /* eval bar */
-        #evalSection { margin-top: auto; padding-top: 18px; }
+        /* engine select + model info box */
+        select#engineSelect {
+            width: 100%; padding: 9px 10px; font-size: 0.88em; color: var(--text);
+            border: 1.5px solid #e5e7eb; border-radius: 10px; background: #fff;
+            appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");
+            background-repeat: no-repeat; background-position: right 12px center;
+        }
+        #engineInfo {
+            margin-top: 10px; padding: 11px 13px; border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent-soft), #f8f9ff);
+            border: 1px solid #e0e5ff; font-size: 0.78em; line-height: 1.55;
+            color: var(--text-soft);
+        }
+        #engineInfo .ei-head { display: flex; justify-content: space-between; align-items: baseline;
+            color: var(--text); font-weight: 700; margin-bottom: 3px; }
+        #engineInfo .ei-size { font-weight: 500; color: var(--accent); font-size: 0.92em; white-space: nowrap; }
+        #engineInfo .ei-elo { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #d6dcff;
+            color: var(--text); }
+        #engineInfo .ei-elo b { color: var(--accent); }
+        #engineInfo .ei-note { font-size: 0.86em; margin-top: 2px; }
+
+        /* eval bar (collapsible) */
+        #evalSection { margin-top: auto; padding-top: 12px; }
+        #evalHead { display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; user-select: none; }
+        #evalHead .title { font-size: 0.78em; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-soft); }
+        #evalChevron { transition: transform 0.2s; color: var(--text-soft); font-size: 0.8em; }
+        #evalSection.collapsed #evalChevron { transform: rotate(-90deg); }
+        #evalSection.collapsed #evalBody { display: none; }
+        #evalBody { margin-top: 8px; }
         #evalLabels { display: flex; justify-content: space-between; font-size: 0.72em; color: var(--text-soft); margin-bottom: 5px; }
         #evalBarWrap { height: 10px; background: #374151; border-radius: 5px; overflow: hidden; }
         #evalBar { height: 100%; width: 50%; background: linear-gradient(90deg, #f9fafb, #e5e7eb); transition: width 0.6s cubic-bezier(.4,0,.2,1); }
@@ -161,13 +199,12 @@
                 </div>
             </div>
             <div id="controls">
-                <h1>♟ Compact Chess Transformer</h1>
-                <div class="subtitle">Kompakte Transformer-Engines · MCTS-Suche</div>
-
-                <div class="control-group">
-                    <label class="title">Spielstärke · <span id="strengthValue">10000 Knoten</span></label>
-                    <input type="range" id="strength" min="0" max="15000" step="5000" value="10000">
-                    <div class="range-labels"><span>Greedy</span><span id="strengthMax">15000</span></div>
+                <div id="headerRow">
+                    <div>
+                        <h1>♟ Compact Chess Transformer</h1>
+                        <div class="subtitle">Kompakte Transformer-Engines · MCTS-Suche</div>
+                    </div>
+                    <button id="startButton">Neue Partie</button>
                 </div>
 
                 <div class="control-group">
@@ -177,25 +214,30 @@
                         <input type="radio" id="color-black" name="color" value="black"><label for="color-black">Schwarz</label>
                         <input type="radio" id="color-random" name="color" value="random"><label for="color-random">Zufall</label>
                     </div>
-                    <div class="option-row">
-                        <label for="engineSelect">Engine:</label>
-                        <select id="engineSelect">
-                            <option value="nano" selected>Nano &mdash; 250k-Modell</option>
-                            <option value="big">ONNX &mdash; 1M-Modell</option>
-                        </select>
-                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="title" for="engineSelect">Engine</label>
+                    <select id="engineSelect">
+                        {% for t in tiers %}
+                        <option value="{{ t.key }}"{% if t.key == default_engine %} selected{% endif %}>{{ t.display }} &mdash; {{ "{:,}".format(t.params).replace(",", ".") }} Parameter</option>
+                        {% endfor %}
+                    </select>
+                    <div id="engineInfo"></div>
+                </div>
+
+                <div class="control-group">
+                    <label class="title">Spielstärke · <span id="strengthValue"></span></label>
+                    <input type="range" id="strength">
+                    <div class="range-labels"><span id="strengthMin"></span><span id="strengthMax"></span></div>
                 </div>
 
                 <div class="control-group">
                     <div class="switch-row">
-                        <div>
-                            <div class="label">3D-Ansicht</div>
-                        </div>
+                        <div class="label">3D-Ansicht</div>
                         <label class="toggle"><input type="checkbox" id="wizardToggle"><span class="track"></span></label>
                     </div>
                 </div>
-
-                <button id="startButton">Neue Partie</button>
 
                 <div id="statusArea">
                     <div id="thinking"><span class="dots"><span></span><span></span><span></span></span> Engine denkt</div>
@@ -203,9 +245,15 @@
                 </div>
 
                 <div id="evalSection">
-                    <div id="evalLabels"><span>Weiß</span><span id="evalPct">50%</span></div>
-                    <div id="evalBarWrap"><div id="evalBar"></div></div>
-                    <div id="aiInfo"></div>
+                    <div id="evalHead">
+                        <span class="title">Gewinnabschätzung</span>
+                        <span id="evalChevron">▼</span>
+                    </div>
+                    <div id="evalBody">
+                        <div id="evalLabels"><span>Weiß</span><span id="evalPct">50%</span></div>
+                        <div id="evalBarWrap"><div id="evalBar"></div></div>
+                        <div id="aiInfo"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -229,7 +277,13 @@
         let board = null;
         let playerColor = 'white';
         let isGameOver = false;
-        let gameEngine = 'nano';
+        let gameEngine = '{{ default_engine }}';
+
+        // tier metadata (exact params, floors/caps, info-box copy, strength
+        // anchors) comes from the server — single source: engine catalog + app.py
+        const TIER_DATA = {{ tiers|tojson }};
+        const TIERS = {};
+        TIER_DATA.forEach(t => TIERS[t.key] = t);
 
         const END_REASONS = {
             checkmate: 'Schachmatt', stalemate: 'Patt',
@@ -245,7 +299,8 @@
             else if (end.winner === playerColor) { title = '\ud83c\udfc6 Gewonnen!'; cls = 'win'; }
             else { title = 'Verloren'; cls = 'loss'; }
             const moves = Math.ceil(end.plies / 2);
-            const engineName = gameEngine === 'big' ? 'ONNX 1M' : 'Nano 250k';
+            const t = TIERS[gameEngine];
+            const engineName = t ? `${t.display} (${t.params.toLocaleString('de-DE')} Parameter)` : gameEngine;
             const reason = END_REASONS[end.reason] || end.reason;
             b.addClass(cls);
             b.find('.end-title').text(title);
@@ -267,7 +322,20 @@
         let wizardOn = false;
         let wizardInitialized = false;
 
-        function currentNodes() { return parseInt($('#strength').val(), 10); }
+        // node counts render in K notation everywhere (1000 -> "1K")
+        function fmtK(n) {
+            if (n < 1000) return n.toString();
+            const k = n / 1000;
+            return (Number.isInteger(k) ? k
+                : k.toLocaleString('de-DE', { maximumFractionDigits: 1 })) + 'K';
+        }
+
+        // the small tiers use a discrete 5K ladder whose lowest stop is the
+        // 1K floor (slider position 0 MEANS 1K — greedy does not exist)
+        function currentNodes() {
+            const t = TIERS[$('#engineSelect').val()];
+            return Math.max(t.min_nodes, parseInt($('#strength').val(), 10));
+        }
 
         // single place that pushes a position into whichever view is active
         function applyFen(fen, animate) {
@@ -283,28 +351,57 @@
             if (wizardOn) Wizard.setInteractive(!isThinking && !isGameOver);
         }
 
-        // per-engine slider shape: nano is ~4x faster -> coarse 5k steps
-        // up to 15k (default 10k); the ONNX engine keeps fine 250er steps
-        function engineParams() {
-            return $('#engineSelect').val() === 'big'
-                ? { max: 6000, step: 250, def: 4000 }
-                : { max: 15000, step: 5000, def: 10000 };
-        }
-        function engineMax() { return engineParams().max; }
-        function applyEngineMax() {
-            const p = engineParams();
+        // per-tier slider shape: small tiers = discrete 5K ladder (position
+        // 0 -> the 1K floor), the Nano tier keeps its fine ladder (min 100)
+        function applyEngineParams() {
+            const t = TIERS[$('#engineSelect').val()];
             const s = $('#strength');
-            s.attr('max', p.max).attr('step', p.step).val(p.def);
-            $('#strengthMax').text(p.max.toLocaleString('de-DE'));
+            if (t.node_step) s.attr({ min: 0, max: t.max_nodes, step: t.node_step });
+            else s.attr({ min: t.min_nodes, max: t.max_nodes, step: 100 });
+            s.val(t.def_nodes);
+            $('#strengthMin').text(fmtK(t.min_nodes));
+            $('#strengthMax').text(fmtK(t.max_nodes));
             updateSlider();
         }
         function updateSlider() {
+            const s = $('#strength');
+            $('#strengthValue').text(fmtK(currentNodes()) + ' Knoten');
+            const v = parseInt(s.val(), 10),
+                  lo = parseInt(s.attr('min'), 10),
+                  hi = parseInt(s.attr('max'), 10);
+            s.css('--fill', ((v - lo) / (hi - lo) * 100) + '%');
+            renderEngineInfo();
+        }
+
+        // model info box: what the engine is, how small it is, and the
+        // estimated strength at the CURRENT node budget (measured anchors,
+        // ~130 Elo per node doubling)
+        function eloEstimate(t, nodes) {
+            const e = t.anchor - 130 * Math.log2(t.anchor_nodes / Math.max(nodes, 1));
+            return Math.round(e / 5) * 5;
+        }
+        function renderEngineInfo() {
+            const t = TIERS[$('#engineSelect').val()];
             const n = currentNodes();
-            $('#strengthValue').text(n === 0 ? 'Greedy (nur Policy)' : n + ' Knoten');
-            $('#strength').css('--fill', (n / engineMax() * 100) + '%');
+            $('#engineInfo').html(
+                `<div class="ei-head"><span>${t.display}</span>` +
+                `<span class="ei-size">${t.params.toLocaleString('de-DE')} Parameter · ${t.size}</span></div>` +
+                `<div>${t.desc}</div>` +
+                `<div class="ei-elo">Geschätzte Spielstärke: <b>~${eloEstimate(t, n).toLocaleString('de-DE')} Elo</b> bei ${fmtK(n)} Knoten/Zug</div>` +
+                `<div class="ei-note">SF16-UCI-Skala · Anker: 30s+0.3-Gauntlets · ~130 Elo pro Knoten-Verdopplung</div>`);
         }
         $('#strength').on('input', updateSlider);
-        $('#engineSelect').on('change', applyEngineMax);
+        $('#engineSelect').on('change', applyEngineParams);
+
+        // collapsible win estimate (state survives reloads)
+        $('#evalHead').on('click', function() {
+            const c = $('#evalSection').toggleClass('collapsed').hasClass('collapsed');
+            try { localStorage.setItem('evalCollapsed', c ? '1' : '0'); } catch (e) {}
+        });
+        try {
+            if (localStorage.getItem('evalCollapsed') === '1')
+                $('#evalSection').addClass('collapsed');
+        } catch (e) {}
 
         function setThinking(on) {
             isThinking = on;
@@ -543,7 +640,7 @@
         });
 
         $(document).ready(function() {
-            updateSlider();
+            applyEngineParams();
             $('#startButton').click();
         });
     </script>

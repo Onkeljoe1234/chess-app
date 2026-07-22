@@ -11,22 +11,19 @@ PORT=8000   # bound to 127.0.0.1 only - reachable solely through the Plesk proxy
 echo "=== Deploying chess.datascience-bonn.de ==="
 
 # 0. Stage the engine-repo subset the Docker build needs (see Dockerfile).
-#    MODEL_FILE: override via env to ship a different checkpoint.
+#    ALL-NANO since 2026-07-22: no ONNX model, no chesscore, no torch —
+#    just the engine python package (the app imports app_models/
+#    nano_predictor; everything heavier stays lazy) plus the nano sources
+#    (built in-container against the image glibc) and the FOUR tier
+#    weights: Nano cct1m / Pico cct250k / Femto cct_sh22 / Atto cct_sh14.
 ENGINE_SRC="${ENGINE_SRC:-/home/loupmut2/Dev/compact_chess_transformers}"
-MODEL_FILE="${MODEL_FILE:-chess_transformer_m=CANON65_FEAT16_legalmask_ds=M.nncf-int8.onnx}"
 STAGE=/home/loupmut2/Dev/chess-app/engine-repo
-echo "Staging engine subset (model: $MODEL_FILE)..."
+echo "Staging engine subset (all-nano, 4 tiers)..."
 rm -rf "$STAGE"
-mkdir -p "$STAGE/onnx_models"
-rsync -rq --exclude '__pycache__' \
-  "$ENGINE_SRC/engine" "$ENGINE_SRC/data_processing" "$STAGE/"
-rsync -rq --exclude target --exclude '__pycache__' "$ENGINE_SRC/chesscore" "$STAGE/"
-cp "$ENGINE_SRC/config.py" "$STAGE/"
-cp "$ENGINE_SRC/onnx_models/$MODEL_FILE" "$STAGE/onnx_models/"
-# nano: sources (built in-container against the image glibc — the host
-# runs glibc 2.31, dev-box binaries would not load) + the 250k weights
 mkdir -p "$STAGE/nano"
-cp "$ENGINE_SRC"/nano/{nano.c,chess.c,search.c,chess.h,nano_math.h,Makefile,cct250k.bin} "$STAGE/nano/"
+rsync -rq --exclude '__pycache__' "$ENGINE_SRC/engine" "$STAGE/"
+cp "$ENGINE_SRC"/nano/{nano.c,chess.c,search.c,chess.h,nano_math.h,nano_nostd.c,Makefile} "$STAGE/nano/"
+cp "$ENGINE_SRC"/nano/{cct1m.bin,cct250k.bin,cct_sh22.bin,cct_sh14.bin} "$STAGE/nano/"
 
 # 1. Sync files to server
 echo "Syncing files..."
