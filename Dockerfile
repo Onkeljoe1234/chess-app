@@ -25,6 +25,10 @@ COPY --from=nano-build /src/nano/nano_app /opt/cct/nano/nano_app
 COPY --from=nano-build /src/nano/nano_app_1m /opt/cct/nano/nano_app_1m
 ENV CCT_ENGINE_PATH=/opt/cct
 ENV NANO_THREADS=4
+# finished games are archived here as PGN — mount a volume (deploy.sh does)
+# or the archive dies with the container
+ENV GAMES_DIR=/data/games
+VOLUME ["/data/games"]
 
 COPY app.py .
 COPY templates/ templates/

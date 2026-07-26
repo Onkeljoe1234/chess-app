@@ -7,5 +7,7 @@ services:
       - "8000:8000"
     environment:
       - APP_PASSWORD=${APP_PASSWORD:?set APP_PASSWORD in .env or environment}
-      - ORT_THREADS=${ORT_THREADS:-4}
+      - NANO_THREADS=${NANO_THREADS:-4}
+    volumes:
+      - ./games:/data/games          # PGN archive survives redeploys
     restart: unless-stopped

@@ -58,12 +58,15 @@ docker rm $CONTAINER_NAME 2>/dev/null || true
 # https://chess.datascience-bonn.de -> localhost:$PORT
 # MODEL_PATH: the staged MODEL_FILE is also the runtime model (CANON* models
 # are auto-wrapped by the engine; see engine/app_predictor.py).
+# the game archive lives on the HOST (survives redeploys); /games.pgn
+# bundles whatever is in there
+mkdir -p $REMOTE_DIR/games
 docker run -d \
   --name $CONTAINER_NAME \
   --restart unless-stopped \
   -p 127.0.0.1:$PORT:8000 \
   --env-file .env \
-  -e MODEL_PATH=/opt/cct/onnx_models/$MODEL_FILE \
+  -v $REMOTE_DIR/games:/data/games \
   $IMAGE_NAME
 
 sleep 2

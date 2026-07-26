@@ -94,6 +94,17 @@
         button#startButton:hover { background: #4338ca; }
         button#startButton:active { transform: scale(0.98); }
 
+        /* secondary actions: take back / resign */
+        #actionRow { display: flex; gap: 8px; }
+        #actionRow button {
+            flex: 1; padding: 9px 0; font-size: 0.85em; font-weight: 600; cursor: pointer;
+            background: #fff; color: var(--text-soft); border: 1.5px solid #e5e7eb;
+            border-radius: 10px; transition: all 0.15s;
+        }
+        #actionRow button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        #actionRow button:disabled { opacity: 0.45; cursor: default; }
+        #resignButton:hover:not(:disabled) { border-color: #dc2626; color: #dc2626; }
+
         #statusArea { min-height: 28px; margin-top: 18px; display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
         #statusText { color: var(--text-soft); }
         #statusText.error { color: #dc2626; font-weight: 600; }
@@ -176,7 +187,7 @@
             #myBoard { width: 100%; }
             #controls { padding: 14px 18px; display: grid;
                 grid-template-columns: 1fr 1fr; gap: 0 18px; align-items: start; }
-            #headerRow, #statusArea, #evalSection { grid-column: 1 / -1; }
+            #headerRow, #actionGroup, #statusArea, #evalSection { grid-column: 1 / -1; }
             #headerRow { margin-bottom: 10px; }
             .control-group { margin-bottom: 10px; }
             #statusArea { min-height: 24px; margin-top: 2px; }
@@ -235,6 +246,13 @@
                     </div>
                 </div>
 
+                <div class="control-group" id="actionGroup">
+                    <div id="actionRow">
+                        <button id="undoButton" disabled>↶ Zurück</button>
+                        <button id="resignButton">Aufgeben</button>
+                    </div>
+                </div>
+
                 <div id="statusArea">
                     <div id="thinking"><span class="dots"><span></span><span></span><span></span></span> Engine denkt</div>
                     <div id="statusText"></div>
@@ -257,6 +275,7 @@
 
     <footer>
         © datascience-bonn.de · <a href="https://www.datascience-bonn.de/impressum" target="_blank" rel="noopener">Impressum</a>
+        · <a href="games.pgn">Partien exportieren (PGN)</a>
     </footer>
 
     <div id="modal-overlay"></div>
@@ -285,6 +304,7 @@
             checkmate: 'Schachmatt', stalemate: 'Patt',
             insufficient: 'Remis — ungen\u00fcgendes Material',
             draw_rule: 'Remis — Stellungswiederholung / 50-Z\u00fcge-Regel',
+            resign: 'Aufgegeben',
             over: 'Partie beendet'
         };
         function showEndBanner(end) {
@@ -387,7 +407,56 @@
             $('#thinking').css('display', on ? 'flex' : 'none');
             if (on) $('#statusText').text('').removeClass('error final');
             updateInteractive();
+            updateActionButtons();
         }
+
+        // --- take back / resign ------------------------------------------
+        let canUndo = false;
+
+        function updateActionButtons() {
+            $('#undoButton').prop('disabled', !canUndo || isThinking || !gameId);
+            $('#resignButton').prop('disabled', isThinking || isGameOver || !gameId);
+        }
+        function setCanUndo(v) { canUndo = !!v; updateActionButtons(); }
+
+        $('#undoButton').on('click', function() {
+            if (!gameId || isThinking) return;
+            $.ajax({
+                url: "undo", type: "POST", contentType: "application/json",
+                data: JSON.stringify({ game_id: gameId }),
+                success: function(r) {
+                    hideEndBanner();
+                    isGameOver = false;
+                    applyFen(r.fen);
+                    clearTapSelection();
+                    setCanUndo(r.can_undo);
+                    $('#aiInfo').empty();
+                    setStatus('Zug zurückgenommen.');
+                    updateInteractive();
+                },
+                error: function(xhr) {
+                    setStatus((xhr.responseJSON && xhr.responseJSON.error) || 'Zurücknehmen nicht möglich', 'error');
+                }
+            });
+        });
+
+        $('#resignButton').on('click', function() {
+            if (!gameId || isThinking || isGameOver) return;
+            if (!confirm('Partie wirklich aufgeben?')) return;
+            $.ajax({
+                url: "resign", type: "POST", contentType: "application/json",
+                data: JSON.stringify({ game_id: gameId }),
+                success: function(r) {
+                    isGameOver = true;
+                    showEndBanner(r.end);
+                    updateInteractive();
+                    updateActionButtons();
+                },
+                error: function(xhr) {
+                    setStatus((xhr.responseJSON && xhr.responseJSON.error) || 'Fehler', 'error');
+                }
+            });
+        });
 
         function setStatus(text, cls) {
             $('#statusText').text(text || '').removeClass('error final');
@@ -417,10 +486,12 @@
                     setThinking(false);
                     applyFen(response.fen);
                     showAiInfo(response.ai);
+                    setCanUndo(response.can_undo);
                     if (response.game_over) {
                         showEndBanner(response.end);
                         isGameOver = true;
                         updateInteractive();
+                        updateActionButtons();
                     }
                 },
                 error: function(xhr) {
@@ -439,11 +510,13 @@
                     // Spielerzug sofort vollständig anzeigen (Rochade-Turm,
                     // En-passant), erst danach denkt die Engine
                     applyFen(response.fen);
+                    setCanUndo(response.can_undo);
                     if (response.game_over) {
                         setThinking(false);
                         showEndBanner(response.end);
                         isGameOver = true;
                         updateInteractive();
+                        updateActionButtons();
                         return;
                     }
                     requestAiMove();
@@ -573,8 +646,14 @@
                         applyFen(data.fen);
                     }
                     setThinking(false);
-                    showAiInfo(data.ai);
+                    setCanUndo(false);
                     setStatus(`Du spielst ${playerColor === 'white' ? 'Weiß' : 'Schwarz'}.`);
+                    if (data.engine_to_move) {
+                        // the board is drawn and flipped BEFORE the search
+                        // starts — playing black used to look like a freeze
+                        setThinking(true);
+                        setTimeout(requestAiMove, 30);   // let the browser paint
+                    }
                 }
             });
         });
