@@ -389,7 +389,33 @@
             s.css('--fill', ((v - lo) / (hi - lo) * 100) + '%');
         }
         $('#strength').on('input', updateSlider);
-        $('#engineSelect').on('change', applyEngineParams);
+
+        // Colour and model define the NEXT game, so changing them starts one
+        // right away (they were silently ineffective mid-game before). A game
+        // with moves on the board asks first; on cancel the control snaps
+        // back to what is actually being played.
+        const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        function gameInProgress() {
+            return !!gameId && !isGameOver && lastFen !== START_FEN;
+        }
+        function restartOrRevert(revert) {
+            if (gameInProgress() &&
+                !confirm('Neue Partie starten? Die laufende Partie geht verloren.')) {
+                revert();
+                return;
+            }
+            $('#startButton').click();
+        }
+        $('input[name="color"]').on('change', function() {
+            restartOrRevert(function() { $('#color-' + playerColor).prop('checked', true); });
+        });
+        $('#engineSelect').on('change', function() {
+            applyEngineParams();                       // slider follows the tier
+            restartOrRevert(function() {
+                $('#engineSelect').val(gameEngine);
+                applyEngineParams();
+            });
+        });
 
         // collapsible win estimate (state survives reloads)
         $('#evalHead').on('click', function() {
@@ -479,10 +505,12 @@
         }
 
         function requestAiMove() {
-            $.ajax({
+            const reqGame = gameId;          // a game started meanwhile makes
+            $.ajax({                         // this reply stale — drop it
                 url: "ai", type: "POST", contentType: "application/json",
-                data: JSON.stringify({ game_id: gameId, nodes: currentNodes() }),
+                data: JSON.stringify({ game_id: reqGame, nodes: currentNodes() }),
                 success: function(response) {
+                    if (reqGame !== gameId) return;
                     setThinking(false);
                     applyFen(response.fen);
                     showAiInfo(response.ai);
@@ -495,6 +523,7 @@
                     }
                 },
                 error: function(xhr) {
+                    if (reqGame !== gameId) return;
                     setThinking(false);
                     setStatus((xhr.responseJSON && xhr.responseJSON.error) || 'Engine-Fehler', 'error');
                 }
@@ -503,10 +532,12 @@
 
         function sendMoveToServer(moveUci, oldPos) {
             setThinking(true);
+            const reqGame = gameId;
             $.ajax({
                 url: "move", type: "POST", contentType: "application/json",
-                data: JSON.stringify({ game_id: gameId, move: moveUci }),
+                data: JSON.stringify({ game_id: reqGame, move: moveUci }),
                 success: function(response) {
+                    if (reqGame !== gameId) return;
                     // Spielerzug sofort vollständig anzeigen (Rochade-Turm,
                     // En-passant), erst danach denkt die Engine
                     applyFen(response.fen);
