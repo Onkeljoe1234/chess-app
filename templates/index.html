@@ -165,6 +165,37 @@
         .toggle input:checked + .track { background: linear-gradient(90deg, #7c3aed, #4f46e5); }
         .toggle input:checked + .track::after { transform: translateX(20px); }
 
+        /* in-app confirm dialog (replaces native confirm(), which reads like
+         * a browser error: "The page at ... says") */
+        #confirmDialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: min(380px, calc(100vw - 32px));
+            background: var(--card); border-radius: var(--radius); z-index: 1000;
+            box-shadow: 0 24px 60px rgba(17,24,39,0.28); display: none;
+            padding: 26px 26px 20px; text-align: center;
+            animation: bannerIn 0.2s ease;
+        }
+        #confirmDialog.show { display: block; }
+        #confirmDialog .cd-icon {
+            width: 46px; height: 46px; margin: 0 auto 14px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.35em; background: var(--accent-soft); color: var(--accent);
+        }
+        #confirmDialog.danger .cd-icon { background: #fee2e2; color: #dc2626; }
+        #confirmDialog h4 { margin: 0 0 6px; font-size: 1.05em; color: var(--text); }
+        #confirmDialog p { margin: 0 0 20px; font-size: 0.86em; line-height: 1.55; color: var(--text-soft); }
+        .cd-actions { display: flex; gap: 10px; }
+        .cd-actions button {
+            flex: 1; padding: 11px 0; font-size: 0.9em; font-weight: 600;
+            border-radius: 10px; cursor: pointer; transition: all 0.15s;
+        }
+        #confirmCancel { background: #fff; color: var(--text-soft); border: 1.5px solid #e5e7eb; }
+        #confirmCancel:hover { border-color: var(--text-soft); color: var(--text); }
+        #confirmOk { background: var(--accent); color: #fff; border: none; }
+        #confirmOk:hover { background: #4338ca; }
+        #confirmDialog.danger #confirmOk { background: #dc2626; }
+        #confirmDialog.danger #confirmOk:hover { background: #b91c1c; }
+
         /* promotion modal */
         #modal-overlay { position: fixed; inset: 0; background: rgba(17,24,39,0.45); z-index: 999; display: none; }
         #promotion-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -284,11 +315,51 @@
         <div id="promotion-pieces"></div>
     </div>
 
+    <div id="confirmDialog">
+        <div class="cd-icon"></div>
+        <h4></h4>
+        <p></p>
+        <div class="cd-actions">
+            <button id="confirmCancel" type="button">Abbrechen</button>
+            <button id="confirmOk" type="button">Bestätigen</button>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/chessboard-1.0.0.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/three.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
     <script>
+        // --- in-app confirm (async, callback-based) ----------------------
+        let confirmOnCancel = null;
+        function askConfirm(opts, onOk, onCancel) {
+            const d = $('#confirmDialog').toggleClass('danger', !!opts.danger);
+            d.find('.cd-icon').text(opts.icon || '♟');
+            d.find('h4').text(opts.title);
+            d.find('p').text(opts.text);
+            $('#confirmOk').text(opts.ok || 'Bestätigen').off('click').on('click', function() {
+                closeConfirm(); if (onOk) onOk();
+            });
+            confirmOnCancel = onCancel || null;
+            $('#modal-overlay').fadeIn(120);
+            d.addClass('show');
+        }
+        function closeConfirm(runCancel) {
+            $('#confirmDialog').removeClass('show');
+            $('#modal-overlay').fadeOut(120);
+            const cb = confirmOnCancel;
+            confirmOnCancel = null;
+            if (runCancel && cb) cb();
+        }
+        $('#confirmCancel').on('click', function() { closeConfirm(true); });
+        $(document).on('keydown', function(e) {
+            if (e.key === 'Escape' && $('#confirmDialog').hasClass('show')) closeConfirm(true);
+            else if (e.key === 'Enter' && $('#confirmDialog').hasClass('show')) $('#confirmOk').click();
+        });
+        $('#modal-overlay').on('click', function() {
+            if ($('#confirmDialog').hasClass('show')) closeConfirm(true);
+        });
+
         let board = null;
         let playerColor = 'white';
         let isGameOver = false;
@@ -399,12 +470,12 @@
             return !!gameId && !isGameOver && lastFen !== START_FEN;
         }
         function restartOrRevert(revert) {
-            if (gameInProgress() &&
-                !confirm('Neue Partie starten? Die laufende Partie geht verloren.')) {
-                revert();
-                return;
-            }
-            $('#startButton').click();
+            if (!gameInProgress()) { $('#startButton').click(); return; }
+            askConfirm({
+                icon: '↺', title: 'Neue Partie starten?',
+                text: 'Die laufende Partie geht verloren und wird nicht im Archiv gespeichert.',
+                ok: 'Neue Partie'
+            }, function() { $('#startButton').click(); }, revert);
         }
         $('input[name="color"]').on('change', function() {
             restartOrRevert(function() { $('#color-' + playerColor).prop('checked', true); });
@@ -468,7 +539,14 @@
 
         $('#resignButton').on('click', function() {
             if (!gameId || isThinking || isGameOver) return;
-            if (!confirm('Partie wirklich aufgeben?')) return;
+            askConfirm({
+                icon: '🏳', title: 'Partie aufgeben?', danger: true,
+                text: 'Die Partie wird als Niederlage gewertet und im Partie-Archiv gespeichert.',
+                ok: 'Aufgeben'
+            }, doResign);
+        });
+
+        function doResign() {
             $.ajax({
                 url: "resign", type: "POST", contentType: "application/json",
                 data: JSON.stringify({ game_id: gameId }),
@@ -482,7 +560,7 @@
                     setStatus((xhr.responseJSON && xhr.responseJSON.error) || 'Fehler', 'error');
                 }
             });
-        });
+        }
 
         function setStatus(text, cls) {
             $('#statusText').text(text || '').removeClass('error final');
