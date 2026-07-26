@@ -340,6 +340,16 @@
     <script src="{{ url_for('static', filename='js/three.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
     <script>
+        // --- persisted settings ------------------------------------------
+        // Every control is read from the DOM when a game starts, so what you
+        // SEE is always what is played. Browser form restoration alone is not
+        // dependable (a hard reload drops it), so the setup is stored
+        // explicitly: model, colour, nodes-per-model, 3D view, eval box.
+        const STORE = {
+            get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+            set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+        };
+
         // --- in-app confirm (async, callback-based) ----------------------
         let confirmOnCancel = null;
         function askConfirm(opts, onOk, onCancel) {
@@ -460,10 +470,15 @@
             const s = $('#strength');
             if (t.node_step) s.attr({ min: 0, max: t.max_nodes, step: t.node_step });
             else s.attr({ min: t.min_nodes, max: t.max_nodes, step: 100 });
-            s.val(t.def_nodes);
+            // node budget is remembered PER MODEL (each tier has its own
+            // ladder, so one shared value would land out of range)
+            let n = parseInt(STORE.get('nodes:' + t.key, ''), 10);
+            if (!Number.isFinite(n) || n < 0 || n > t.max_nodes) n = t.def_nodes;
+            s.val(n);
             $('#strengthMin').text(fmtK(t.min_nodes));
             $('#strengthMax').text(fmtK(t.max_nodes));
             $('#engineKb').text(t.engine_kb + ' KB Engine');
+            STORE.set('engine', t.key);
             updateSlider();
         }
         function updateSlider() {
@@ -473,6 +488,7 @@
                   lo = parseInt(s.attr('min'), 10),
                   hi = parseInt(s.attr('max'), 10);
             s.css('--fill', ((v - lo) / (hi - lo) * 100) + '%');
+            STORE.set('nodes:' + $('#engineSelect').val(), s.val());
         }
         $('#strength').on('input', updateSlider);
 
@@ -492,8 +508,13 @@
                 ok: 'Neue Partie'
             }, function() { $('#startButton').click(); }, revert);
         }
+        function saveColor() { STORE.set('color', $('input[name="color"]:checked').val()); }
         $('input[name="color"]').on('change', function() {
-            restartOrRevert(function() { $('#color-' + playerColor).prop('checked', true); });
+            saveColor();
+            restartOrRevert(function() {
+                $('#color-' + playerColor).prop('checked', true);
+                saveColor();                      // storage follows the revert
+            });
         });
         $('#engineSelect').on('change', function() {
             applyEngineParams();                       // slider follows the tier
@@ -506,13 +527,10 @@
         // collapsible win estimate (state survives reloads)
         $('#evalHead').on('click', function() {
             const c = $('#evalSection').toggleClass('collapsed').hasClass('collapsed');
-            try { localStorage.setItem('evalCollapsed', c ? '1' : '0'); } catch (e) {}
+            STORE.set('evalCollapsed', c ? '1' : '0');
         });
         // default COLLAPSED — only an explicit open (stored '0') survives
-        try {
-            if (localStorage.getItem('evalCollapsed') !== '0')
-                $('#evalSection').addClass('collapsed');
-        } catch (e) { $('#evalSection').addClass('collapsed'); }
+        if (STORE.get('evalCollapsed', '1') !== '0') $('#evalSection').addClass('collapsed');
 
         function setThinking(on) {
             isThinking = on;
@@ -825,17 +843,21 @@
                 board.position(lastFen);
                 board.resize();
             }
-            try { localStorage.setItem('wizardOn', wizardOn ? '1' : '0'); } catch (e) {}
+            STORE.set('wizardOn', wizardOn ? '1' : '0');
         }
 
         $('#wizardToggle').on('change', function() { applyWizardState(this.checked); });
 
         $(document).ready(function() {
-            applyEngineParams();
-            // the browser restores the checkbox across reloads, so the view
-            // has to follow it (otherwise: toggle ON, 2D board shown)
-            let want3d = false;
-            try { want3d = localStorage.getItem('wizardOn') === '1'; } catch (e) {}
+            // restore the whole setup BEFORE the first game starts, so the
+            // controls and the game that /start creates always agree
+            const savedEngine = STORE.get('engine', '');
+            if (TIERS[savedEngine]) $('#engineSelect').val(savedEngine);
+            const savedColor = STORE.get('color', '');
+            if (['white', 'black', 'random'].indexOf(savedColor) >= 0)
+                $('#color-' + savedColor).prop('checked', true);
+            applyEngineParams();                  // also restores the node budget
+            const want3d = STORE.get('wizardOn', '0') === '1';
             $('#wizardToggle').prop('checked', want3d);
             if (want3d) applyWizardState(true);
             $('#startButton').click();
