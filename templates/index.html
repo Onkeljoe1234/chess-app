@@ -167,15 +167,23 @@
 
         /* in-app confirm dialog (replaces native confirm(), which reads like
          * a browser error: "The page at ... says") */
-        #confirmDialog {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: min(380px, calc(100vw - 32px));
-            background: var(--card); border-radius: var(--radius); z-index: 1000;
-            box-shadow: 0 24px 60px rgba(17,24,39,0.28); display: none;
-            padding: 26px 26px 20px; text-align: center;
-            animation: bannerIn 0.2s ease;
+        /* flex-centred wrapper instead of translate(-50%,-50%): the scale
+         * keyframe would REPLACE that translate for the duration of the
+         * animation, so the card visibly started off-centre and snapped in */
+        #confirmWrap {
+            position: fixed; inset: 0; z-index: 1000; display: none;
+            align-items: center; justify-content: center; padding: 16px;
         }
-        #confirmDialog.show { display: block; }
+        #confirmWrap.show { display: flex; }
+        #confirmDialog {
+            width: min(380px, 100%);
+            background: var(--card); border-radius: var(--radius);
+            box-shadow: 0 24px 60px rgba(17,24,39,0.28);
+            padding: 26px 26px 20px; text-align: center;
+            animation: dialogIn 0.2s ease;
+        }
+        @keyframes dialogIn { from { opacity: 0; transform: scale(0.94); }
+                              to { opacity: 1; transform: scale(1); } }
         #confirmDialog .cd-icon {
             width: 46px; height: 46px; margin: 0 auto 14px; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
@@ -315,13 +323,15 @@
         <div id="promotion-pieces"></div>
     </div>
 
-    <div id="confirmDialog">
-        <div class="cd-icon"></div>
-        <h4></h4>
-        <p></p>
-        <div class="cd-actions">
-            <button id="confirmCancel" type="button">Abbrechen</button>
-            <button id="confirmOk" type="button">Bestätigen</button>
+    <div id="confirmWrap">
+        <div id="confirmDialog">
+            <div class="cd-icon"></div>
+            <h4></h4>
+            <p></p>
+            <div class="cd-actions">
+                <button id="confirmCancel" type="button">Abbrechen</button>
+                <button id="confirmOk" type="button">Bestätigen</button>
+            </div>
         </div>
     </div>
 
@@ -342,10 +352,11 @@
             });
             confirmOnCancel = onCancel || null;
             $('#modal-overlay').fadeIn(120);
-            d.addClass('show');
+            $('#confirmWrap').addClass('show');
         }
+        function confirmOpen() { return $('#confirmWrap').hasClass('show'); }
         function closeConfirm(runCancel) {
-            $('#confirmDialog').removeClass('show');
+            $('#confirmWrap').removeClass('show');
             $('#modal-overlay').fadeOut(120);
             const cb = confirmOnCancel;
             confirmOnCancel = null;
@@ -353,11 +364,15 @@
         }
         $('#confirmCancel').on('click', function() { closeConfirm(true); });
         $(document).on('keydown', function(e) {
-            if (e.key === 'Escape' && $('#confirmDialog').hasClass('show')) closeConfirm(true);
-            else if (e.key === 'Enter' && $('#confirmDialog').hasClass('show')) $('#confirmOk').click();
+            if (!confirmOpen()) return;
+            if (e.key === 'Escape') closeConfirm(true);
+            else if (e.key === 'Enter') $('#confirmOk').click();
+        });
+        $('#confirmWrap').on('click', function(e) {
+            if (e.target === this) closeConfirm(true);     // backdrop only
         });
         $('#modal-overlay').on('click', function() {
-            if ($('#confirmDialog').hasClass('show')) closeConfirm(true);
+            if (confirmOpen()) closeConfirm(true);
         });
 
         let board = null;
@@ -786,12 +801,18 @@
             }
         }
 
-        $('#wizardToggle').on('change', function() {
-            wizardOn = this.checked;
+        function applyWizardState(on) {
+            wizardOn = on;
             clearTapSelection();
             if (wizardOn && !wizardInitialized) {
-                Wizard.init(document.getElementById('wizard3d'), onWizardMove);
-                wizardInitialized = true;
+                try {
+                    Wizard.init(document.getElementById('wizard3d'), onWizardMove);
+                    wizardInitialized = true;
+                } catch (e) {                 // no WebGL -> stay in 2D
+                    wizardOn = false;
+                    $('#wizardToggle').prop('checked', false);
+                    setStatus('3D-Ansicht auf diesem Gerät nicht verfügbar.', 'error');
+                }
             }
             $('#myBoard').toggle(!wizardOn);
             $('#wizard3d').toggle(wizardOn);
@@ -804,10 +825,19 @@
                 board.position(lastFen);
                 board.resize();
             }
-        });
+            try { localStorage.setItem('wizardOn', wizardOn ? '1' : '0'); } catch (e) {}
+        }
+
+        $('#wizardToggle').on('change', function() { applyWizardState(this.checked); });
 
         $(document).ready(function() {
             applyEngineParams();
+            // the browser restores the checkbox across reloads, so the view
+            // has to follow it (otherwise: toggle ON, 2D board shown)
+            let want3d = false;
+            try { want3d = localStorage.getItem('wizardOn') === '1'; } catch (e) {}
+            $('#wizardToggle').prop('checked', want3d);
+            if (want3d) applyWizardState(true);
             $('#startButton').click();
         });
     </script>
