@@ -150,7 +150,8 @@ def _ai_info_json(info: dict) -> dict:
     return {
         "win_prob_white": round(info.get("win_prob_white", 0.5), 4),
         "nodes": info.get("nodes", 0),
-        "depth": info.get("depth", 0),
+        "depth": info.get("depth", 0),          # PV length (most-visited path)
+        "seldepth": info.get("seldepth", 0),    # deepest descent of the search
         "time": round(info.get("time", 0.0), 2),
     }
 

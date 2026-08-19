@@ -606,7 +606,7 @@
             $('#evalBar').css('width', pct + '%');
             $('#evalPct').text(pct + '%');
             $('#aiInfo').html(
-                `Engine-Zug: <b>${ai.uci}</b> · Tiefe ${ai.depth}<br>` +
+                `Engine-Zug: <b>${ai.uci}</b> · Tiefe ${ai.depth}${ai.seldepth ? ` (max ${ai.seldepth})` : ''}<br>` +
                 `${ai.nodes.toLocaleString('de-DE')} Knoten in ${ai.time}s`);
         }
 
