@@ -1,7 +1,8 @@
 """Chess app: play against the compact-transformer family (nano engine, CPU).
 
-- Four tiers (Nano 961,942 / Pico 236,182 / Femto 137,046 / Atto 87,478
-  exact params), all on the self-contained nano UCI engine — the app is
+- Four tiers (Nano 961,942 / Pico 255,382 RayScan / Femto 137,046 / Atto
+  94,006 = the 90K edge point; exact params, lineup 2026-08-19), all on the
+  self-contained nano UCI engine — the app is
   ONNX-free. The strength slider sets NN evaluations per move; greedy is
   not offered (per-tier min-node floors, enforced engine-side too).
 - Multi-game: each /start returns a game_id; concurrent games don't clobber
@@ -51,7 +52,9 @@ TIER_UI = {
     "nano":  dict(max_nodes=6000, def_nodes=4000),
     "pico":  dict(max_nodes=30000, def_nodes=10000),
     "femto": dict(max_nodes=30000, def_nodes=10000),
-    "atto":  dict(max_nodes=30000, def_nodes=10000),
+    # the 90K edge point runs ~3.5x the evals/s of the other small tiers
+    # (15.9k vs 4.6k at 4T, fp32 server build) -> wider node range
+    "atto":  dict(max_nodes=60000, def_nodes=20000),
 }
 ENGINES = tuple(TIERS)
 _LEGACY = {"big": "nano"}          # pre-catalog client keys
