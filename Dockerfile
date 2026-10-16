@@ -1,7 +1,7 @@
 # All-nano build (2026-07-22): the app talks ONLY to the self-contained
-# nano UCI binaries — no torch, no ONNX runtime, no chesscore wheel. One
-# build stage compiles the three portable engine binaries (250K-dims,
-# 1M-dims, 90K-edge dims) against the image's glibc (the host's glibc version is moot);
+# nano UCI binary — no torch, no ONNX runtime, no chesscore wheel. One
+# build stage compiles the portable Femto engine binary (90K-edge dims; the
+# Pico/Nano tiers were retired 2026-10-16) against the image's glibc (the host's glibc version is moot);
 # x86-64-v3 baseline — the Strato host has AVX2/FMA/BMI2, no VNNI.
 
 # --- stage 1: the nano binaries ---------------------------------------------
@@ -9,7 +9,7 @@ FROM python:3.12-slim AS nano-build
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential && rm -rf /var/lib/apt/lists/*
 COPY engine-repo/nano /src/nano
-RUN cd /src/nano && make app app1m app90k
+RUN cd /src/nano && make app90k
 
 # --- stage 2: the app --------------------------------------------------------
 FROM python:3.12-slim
@@ -21,8 +21,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # the engine repo subset (engine/ python package + nano weights; the app
 # imports engine.app_models / engine.nano_predictor — both torch-free)
 COPY engine-repo/ /opt/cct/
-COPY --from=nano-build /src/nano/nano_app /opt/cct/nano/nano_app
-COPY --from=nano-build /src/nano/nano_app_1m /opt/cct/nano/nano_app_1m
 COPY --from=nano-build /src/nano/nano_app_90k /opt/cct/nano/nano_app_90k
 ENV CCT_ENGINE_PATH=/opt/cct
 # 6 = the host's thread count (EPYC-Milan VM, 3c/6t): measured 2026-08-19

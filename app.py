@@ -1,8 +1,8 @@
 """Chess app: play against the compact-transformer family (nano engine, CPU).
 
-- Three tiers (Nano 961,942 / Pico 255,382 RayScan-hard / Femto 94,006 =
-  the 90K edge point; exact params, lineup 2026-08-19), all on the
-  self-contained nano UCI engine — the app is
+- One tier since 2026-10-16: Femto (94,198 params, the 90K RayScan edge
+  point; Pico/Nano retired — Femto plays Pico to parity at 37 % of the
+  params and ~2.2x the speed), on the self-contained nano UCI engine — the app is
   ONNX-free. The strength slider sets NN evaluations per move; greedy is
   not offered (per-tier min-node floors, enforced engine-side too).
 - Multi-game: each /start returns a game_id; concurrent games don't clobber
@@ -41,7 +41,7 @@ GAMES_DIR = os.getenv("GAMES_DIR",
                       os.path.join(os.path.dirname(os.path.abspath(__file__)), "games"))
 NANO_THREADS = int(os.getenv("NANO_THREADS", "4"))
 NANO_VARIETY = float(os.getenv("NANO_VARIETY", "0.7"))
-DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "pico")
+DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "femto")
 
 # All tiers run on the nano engine (the app is ONNX-free since the 1M
 # model's nano port). Engine-side truth (exact params, min_nodes, binaries)
@@ -49,14 +49,12 @@ DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "pico")
 # caps & defaults (caps ~match wall-clock — the 1M model runs ~1/4 the
 # evals/s). The UI stays minimal: the select shows name + exact params.
 TIER_UI = {
-    "nano":  dict(max_nodes=6000, def_nodes=4000),
-    "pico":  dict(max_nodes=30000, def_nodes=10000),
-    # Femto = the 90K edge point: ~2.2x Pico's evals/s on the server (29k vs
-    # 13k at 6T, AVX2 int8) -> wider node range
+    # Femto = the 90K edge point: ~29k+ evals/s on the server (6T, AVX2 int8)
     "femto": dict(max_nodes=60000, def_nodes=20000),
 }
 ENGINES = tuple(TIERS)
-_LEGACY = {"big": "nano"}          # pre-catalog client keys
+# retired / pre-catalog client keys -> Femto (lineup 2026-10-16)
+_LEGACY = {"big": "femto", "nano": "femto", "pico": "femto"}
 
 _predictors = {}
 

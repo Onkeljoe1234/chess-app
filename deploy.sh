@@ -14,18 +14,17 @@ echo "=== Deploying chess.datascience-bonn.de ==="
 #    ALL-NANO since 2026-07-22: no ONNX model, no chesscore, no torch —
 #    just the engine python package (the app imports app_models/
 #    nano_predictor; everything heavier stays lazy) plus the nano sources
-#    (built in-container against the image glibc) and the THREE tier
-#    weights (lineup 2026-08-19): Nano cct1m / Pico cct_rayscan_hard
-#    (the RayScan CPU ship) / Femto cct_90k (the 90K edge point, own
-#    geometry binary nano_app_90k).
+#    (built in-container against the image glibc) and the ONE tier's
+#    weights (lineup 2026-10-16): Femto cct_90k (the 90K RayScan edge point,
+#    own geometry binary nano_app_90k; Pico/Nano retired).
 ENGINE_SRC="${ENGINE_SRC:-/home/loupmut2/Dev/compact_chess_transformers}"
 STAGE=/home/loupmut2/Dev/chess-app/engine-repo
-echo "Staging engine subset (all-nano, 4 tiers)..."
+echo "Staging engine subset (all-nano, Femto only)..."
 rm -rf "$STAGE"
 mkdir -p "$STAGE/nano"
 rsync -rq --exclude '__pycache__' "$ENGINE_SRC/engine" "$STAGE/"
 cp "$ENGINE_SRC"/nano/{nano.c,chess.c,search.c,chess.h,nano_math.h,nano_nostd.c,Makefile} "$STAGE/nano/"
-cp "$ENGINE_SRC"/nano/{cct1m.bin,cct_rayscan_hard.bin,cct_90k.bin} "$STAGE/nano/"
+cp "$ENGINE_SRC"/nano/cct_90k.bin "$STAGE/nano/"   # Femto only since 2026-10-16
 
 # 1. Sync files to server
 echo "Syncing files..."
