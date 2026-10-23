@@ -23,6 +23,7 @@ echo "Staging engine subset (all-nano, Pico only)..."
 rm -rf "$STAGE"
 mkdir -p "$STAGE/nano"
 rsync -rq --exclude '__pycache__' "$ENGINE_SRC/engine" "$STAGE/"
+cp "$ENGINE_SRC/config.py" "$STAGE/"   # nano_predictor imports config (torch-free since the 2026-10-17 slim)
 cp "$ENGINE_SRC"/nano/{nano.c,chess.c,search.c,chess.h,nano_math.h,Makefile} "$STAGE/nano/"   # nano_nostd.c retired 2026-10-17
 cp "$ENGINE_SRC"/nano/cct_pico.bin "$STAGE/nano/"  # Pico only since 2026-10-23
 
