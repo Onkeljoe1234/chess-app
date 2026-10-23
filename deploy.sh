@@ -15,16 +15,16 @@ echo "=== Deploying chess.datascience-bonn.de ==="
 #    just the engine python package (the app imports app_models/
 #    nano_predictor; everything heavier stays lazy) plus the nano sources
 #    (built in-container against the image glibc) and the ONE tier's
-#    weights (lineup 2026-10-16): Femto cct_90k (the 90K RayScan edge point,
-#    own geometry binary nano_app_90k; Pico/Nano retired).
+#    weights (lineup 2026-10-23): Pico cct_pico (138K, read by the d64 build
+#    nano_app_90k: per-layer FFN + low-rank gate come from the file).
 ENGINE_SRC="${ENGINE_SRC:-/home/loupmut2/Dev/compact_chess_transformers}"
 STAGE=/home/loupmut2/Dev/chess-app/engine-repo
-echo "Staging engine subset (all-nano, Femto only)..."
+echo "Staging engine subset (all-nano, Pico only)..."
 rm -rf "$STAGE"
 mkdir -p "$STAGE/nano"
 rsync -rq --exclude '__pycache__' "$ENGINE_SRC/engine" "$STAGE/"
 cp "$ENGINE_SRC"/nano/{nano.c,chess.c,search.c,chess.h,nano_math.h,nano_nostd.c,Makefile} "$STAGE/nano/"
-cp "$ENGINE_SRC"/nano/cct_90k.bin "$STAGE/nano/"   # Femto only since 2026-10-16
+cp "$ENGINE_SRC"/nano/cct_pico.bin "$STAGE/nano/"  # Pico only since 2026-10-23
 
 # 1. Sync files to server
 echo "Syncing files..."
