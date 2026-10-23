@@ -27,8 +27,13 @@ cp "$ENGINE_SRC/config.py" "$STAGE/"   # nano_predictor imports config (torch-fr
 cp "$ENGINE_SRC"/nano/{nano.c,chess.c,search.c,chess.h,nano_math.h,Makefile} "$STAGE/nano/"   # nano_nostd.c retired 2026-10-17
 cp "$ENGINE_SRC"/nano/cct_pico.bin "$STAGE/nano/"  # Pico only since 2026-10-23
 
-# 1. Sync files to server
+# 1. Sync files to server. engine-repo/ is a pure staging copy: synced with
+#    --delete (scoped to that directory) so retired files never linger in
+#    the image (2026-10-23: a stale torch-importing config.py did).
 echo "Syncing files..."
+rsync -zrh --delete -e "ssh -i $SSH_KEY" \
+  /home/loupmut2/Dev/chess-app/engine-repo/ \
+  "$SERVER:$REMOTE_DIR/engine-repo/"
 rsync -zruh \
   --exclude '.git' \
   --exclude '.vscode' \
