@@ -15,17 +15,17 @@ echo "=== Deploying chess.datascience-bonn.de ==="
 #    just the engine python package (the app imports app_models/
 #    nano_predictor; everything heavier stays lazy) plus the nano sources
 #    (built in-container against the image glibc) and the ONE tier's
-#    weights (lineup 2026-10-23): Pico cct_pico (138K, read by the d64 build
-#    nano_app_90k: per-layer FFN + low-rank gate come from the file).
+#    weights (lineup 2026-11-12): Femto V2 cct_femto_v2 (102K, read by the d64
+#    build nano_app_90k: per-layer FFN + BatchNorm trunk come from the file).
 ENGINE_SRC="${ENGINE_SRC:-/home/loupmut2/Dev/compact_chess_transformers}"
 STAGE=/home/loupmut2/Dev/chess-app/engine-repo
-echo "Staging engine subset (all-nano, Pico only)..."
+echo "Staging engine subset (all-nano, Femto V2 only)..."
 rm -rf "$STAGE"
 mkdir -p "$STAGE/nano"
 rsync -rq --exclude '__pycache__' "$ENGINE_SRC/engine" "$STAGE/"
 cp "$ENGINE_SRC/config.py" "$STAGE/"   # nano_predictor imports config (torch-free since the 2026-10-17 slim)
 cp "$ENGINE_SRC"/nano/{nano.c,chess.c,search.c,chess.h,nano_math.h,Makefile} "$STAGE/nano/"   # nano_nostd.c retired 2026-10-17
-cp "$ENGINE_SRC"/nano/cct_pico.bin "$STAGE/nano/"  # Pico only since 2026-10-23
+cp "$ENGINE_SRC"/nano/cct_femto_v2.bin "$STAGE/nano/"  # Femto V2 only since 2026-11-12
 
 # 1. Sync files to server. engine-repo/ is a pure staging copy: synced with
 #    --delete (scoped to that directory) so retired files never linger in

@@ -1,11 +1,12 @@
 """Chess app: play against the compact-transformer family (nano engine, CPU).
 
-- One tier since 2026-10-23: Pico (138,486 params: Femto + attack graph /
-  broadcast / relation messages, layer-3 FFN 128, rank-16 gate; beats Femto
-  +50 Elo at 120+1, 0.884x its evals/s). Femto was the single tier
-  2026-10-16 .. 23. Runs on the self-contained nano UCI engine — the app is
-  ONNX-free. The strength slider sets NN evaluations per move; greedy is
-  not offered (per-tier min-node floors, enforced engine-side too).
+- One tier since 2026-11-12: Femto V2 (102,454 params: Femto + BatchNorm trunk
+  + layer-1 FFN 128, trained with sibling children; about 3320 on the CCRL
+  Blitz scale at 1 thread on the dev box). Pico was the single tier
+  2026-10-23 .. 2026-11-12, Femto 2026-10-16 .. 23. Runs on the
+  self-contained nano UCI engine — the app is ONNX-free. The strength slider
+  sets NN evaluations per move; greedy is not offered (per-tier min-node
+  floors, enforced engine-side too).
 - Multi-game: each /start returns a game_id; concurrent games don't clobber
   each other.
 - Auth: HTTP Basic with a shared password from APP_PASSWORD (empty = no auth).
@@ -42,7 +43,7 @@ GAMES_DIR = os.getenv("GAMES_DIR",
                       os.path.join(os.path.dirname(os.path.abspath(__file__)), "games"))
 NANO_THREADS = int(os.getenv("NANO_THREADS", "4"))
 NANO_VARIETY = float(os.getenv("NANO_VARIETY", "0.7"))
-DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "pico")
+DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "femto_v2")
 
 # All tiers run on the nano engine (the app is ONNX-free since the 1M
 # model's nano port). Engine-side truth (exact params, min_nodes, binaries)
@@ -50,13 +51,14 @@ DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE", "pico")
 # caps & defaults (caps ~match wall-clock — the 1M model runs ~1/4 the
 # evals/s). The UI stays minimal: the select shows name + exact params.
 TIER_UI = {
-    # Pico: ~0.88x Femto's evals/s (Femto ~29k+ on the server, 6T AVX2 int8);
-    # same caps — the slider is NN evaluations, wall time grows ~13 %
-    "pico": dict(max_nodes=60000, def_nodes=20000),
+    # Femto V2: ~1.04x Pico's evals/s on the server build (6T AVX2 int8, dev
+    # box 2026-11-12), plus the kernel round of 2026-11-10; same caps — the
+    # slider is NN evaluations
+    "femto_v2": dict(max_nodes=60000, def_nodes=20000),
 }
 ENGINES = tuple(TIERS)
-# retired / pre-catalog client keys -> Pico (lineup 2026-10-23)
-_LEGACY = {"big": "pico", "nano": "pico", "femto": "pico"}
+# retired / pre-catalog client keys -> Femto V2 (lineup 2026-11-12)
+_LEGACY = {"big": "femto_v2", "nano": "femto_v2", "femto": "femto_v2", "pico": "femto_v2"}
 
 _predictors = {}
 

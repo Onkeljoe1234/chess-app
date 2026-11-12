@@ -1,8 +1,8 @@
 # All-nano build (2026-07-22): the app talks ONLY to the self-contained
 # nano UCI binary — no torch, no ONNX runtime, no chesscore wheel. One
 # build stage compiles the portable d64 engine binary nano_app_90k (since
-# 2026-10-23 it serves Pico: per-layer FFN + low-rank gate are read from the
-# weights file) against the image's glibc (the host's glibc version is moot);
+# 2026-11-12 it serves Femto V2: per-layer FFN + BatchNorm trunk are read from
+# the weights file) against the image's glibc (the host's glibc version is moot);
 # x86-64-v3 baseline — the Strato host has AVX2/FMA/BMI2, no VNNI.
 
 # --- stage 1: the nano binaries ---------------------------------------------
